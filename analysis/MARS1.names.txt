@@ -9,6 +9,15 @@
 1054:7adb main
 1054:3b5f LoadIGS                   # fopen(name,"rb") or "incomplete version" screen + exit(1); fread 0x413C bytes -> 2354:0766
 1054:03e4 DrawString_guess          # (x, y, char far *s, color); text cells, used by the LoadIGS error screen
+1054:0a36 SetVideoMode              # INT 10h AH=0 AL=mode; black background; CGA palette 0 low intensity (gameplay)
+1054:0aa7 SetVideoModePal1Bright    # same, but palette 1 high intensity (main menu, CF2)
+1054:0e34 PlaySound                 # sound(freq) if sound is on ([2354:05D7])
+1054:31f3 DrawLevel                 # (level): draws 2226:0025 + level*0xF0 into the back buffer, builds entity lists
+1054:18a4 BlitTile_Buf1             # opaque 16x16 tile -> back buffer 2354:4983 (row, byte col)
+1054:1970 BlitTile_Buf2             # opaque 16x16 tile -> back buffer 2354:8A26
+1054:1b72 BlitTile_Screen           # opaque 16x16 tile -> B800, 8 scanlines down (below the status line)
+1054:1c3f BlitMasked_Buf2           # (dst & mask) | pixels -> 2354:8A26
+1054:1ebb BlitMasked_Buf2_Collide   # same, and first samples 8 buffer bytes around it into 2354:492A-4931
 
 # --- Turbo C runtime (huge model; each module loads its own DS) ---
 1d4f:0014 exit

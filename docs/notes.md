@@ -65,9 +65,9 @@ Ghidra's auto-analysis missed functions in many small segments; expect to create
 
 | File        | Size   | Notes                                                   |
 |-------------|--------|---------------------------------------------------------|
-| MARSn.CF1   | 7,947  | PCX (v5, RLE, 2 bpp) screen; name is in the EXE         |
-| MARSn.CF2   | 4,377  | PCX screen                                              |
-| MARSn.IGS   | 16,600 / 16,700 | Read whole by `LoadIGS` into 2354:0766 (fread of 0x413C = 16,700 bytes; MARS1's file is 100 bytes short). Contents unknown yet, probably graphics |
+| MARSn.CF1   | 7,947  | PCX title screen ("by Todd Replogle"), palette 0        |
+| MARSn.CF2   | 4,377  | PCX main menu, palette 1 bright                         |
+| MARSn.IGS   | 16,600 / 16,700 | The tile and sprite set (see Graphics). `LoadIGS` freads 0x413C = 16,700 bytes into 2354:0766; MARS1's file is 100 bytes short |
 | MARSn.HS    |        | High scores: text lines of score + name, CR LF          |
 | MARSn.SV1/2 |        | Saved game (SV2 holds the score as text)                |
 | MARSn.KBD / .SPD |   | Probably keyboard and speed settings                    |
@@ -79,6 +79,45 @@ Ghidra's auto-analysis missed functions in many small segments; expect to create
   `movmem(2226:0025 + level*0xF0, 2354:8809, 0xF0)`.
 - Level 1 shows stars (74-77) in the top rows and hills and ground (79/7A, slopes 7B/7C) at
   the bottom.
-- **Open question:** laid out at 20 bytes per row, each row's rightmost tile shows up in
-  column 0 of the next row, as if the game indexes columns 1..20. Confirm when we find the
-  code that draws the level.
+- `DrawLevel` (1054:31f3) reads the map row-major (index 0..239). The first guess here, that
+  rows were shifted by a byte, was wrong: rendered, level 1's hills simply run off both edges.
+- Most bytes are drawn as `tile[b]`. These are **entities** instead (spawn points in lists
+  of 3-byte records `type, byte col, row`), and are not drawn as tiles:
+  04, 06, 46, 49, 4A, 4B, 55, 6E, and **65 = the player's start** (saved to 2354:05DC/05DE).
+  55, 56-59 and 6F are entities *and* drawn.
+- Bytes 09-46, 56-59, 6E, 70 and 74-77 also go into a list at 2354:C9A8 (`type, col, row`)
+  with a flag at 2354:CC00 (0 for the stars 74-78): probably the cells that animate or can
+  be collected or destroyed.
+- 18 and 19 come in pairs on a row: 18 marks the left end, 19 the right end, stored as
+  `width, col, row` at 2354:4947. Probably patrol or platform ranges.
+- In the other volumes the level segment is 2241 (MARS2, MARS3) and 224D (MARS4); the tool
+  finds it by matching DrawLevel's `mov ax,seg / mov es,ax / mov al,es:[bx+25h]`.
+
+## Graphics
+
+- **CGA 320x200, 4 colours.** Gameplay uses **palette 0, low intensity** (black / green / red /
+  brown): `SetVideoMode` (1054:0a36) does INT 10h AH=0 then AH=0Bh BH=0 BL=0 (black
+  background, no intensity) and BH=1 BL=0 (palette 0). `SetVideoModePal1Bright` (1054:0aa7)
+  picks palette 1 bright, for the main menu.
+- PCX palettes match the ZSoft rule for byte 19 (bit 6 = palette, bit 5 = intensity):
+  CF1 = 0x00 (palette 0), CF2 = 0xF0 (palette 1 bright). This also matches Pharaoh's Tomb's
+  0x40 = palette 1.
+- **Tiles (.IGS):** 129 tiles of 16x16 (MARS1), 128 bytes each; tile n is at IGS + n*0x80.
+  The first 64 bytes are the 8 even scanlines and the next 64 the 8 odd ones, matching CGA's
+  two banks. Each scanline is 8 bytes, alternating `mask, pixels` (4 of each, 2 bpp, MSB
+  leftmost). Mask bits 11 = see-through. The same tile set holds the terrain, the player's
+  frames, enemies and the "M A R S" letters, so there is no separate sprite format.
+- **Blitters** all take `(tile far *, row, byte column)`, where row counts scanline pairs
+  (0..0x5F step 8) and byte column is 4 bytes per tile (0..0x4F):
+  - opaque (copies pixels, ignores the mask): `BlitTile_Buf1` -> back buffer 2354:4983,
+    `BlitTile_Buf2` -> 2354:8A26, `BlitTile_Screen` -> B800 + 0x140
+  - masked: `dst = (dst & mask) | pixels`: `BlitMasked_Buf2` and many near-copies after it
+    (1054:1d7d, 2092, 21e8, ...)
+- Both back buffers are 16,000-byte copies of CGA memory (bank 0 at +0, bank 1 at +0x2000).
+- **Collision reads the framebuffer**, as in Pharaoh's Tomb: `BlitMasked_Buf2_Collide`
+  samples 8 bytes of the buffer around the sprite into flags (2354:492A-4931) before drawing.
+  The port needs a real 2 bpp buffer that game logic can read back.
+- `tools/extract_gfx.py` writes everything to `gfx/` (not committed):
+  `tiles game/MARS1.IGS gfx/mars1`, `levels unpacked/MARS1.EXE game/MARS1.IGS gfx/mars1`
+  (also a .txt hex map per level; entity cells outlined in white), and
+  `pcx game/MARS1.CF1 out.png` (palette from the header unless `--palette` is given).
