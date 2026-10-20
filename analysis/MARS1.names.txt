@@ -1,0 +1,44 @@
+# Function names for unpacked/MARS1.EXE (Ghidra load base 1000).
+# Apply with: python tools/ghidra_rename.py analysis/MARS1.names.txt
+# Names ending in _guess are inferred from a single call site and need confirming.
+
+# --- Turbo C startup (C0, segment 1000) ---
+1000:0000 _c0_startup               # DS=DGROUP 211d, INT 21h AH=30h, calls main(argc, argv, envp), then exit
+
+# --- Main program (segment 1054, data segment 2354) ---
+1054:7adb main
+1054:3b5f LoadIGS                   # fopen(name,"rb") or "incomplete version" screen + exit(1); fread 0x413C bytes -> 2354:0766
+1054:03e4 DrawString_guess          # (x, y, char far *s, color); text cells, used by the LoadIGS error screen
+
+# --- Turbo C runtime (huge model; each module loads its own DS) ---
+1d4f:0014 exit
+1dab:023e fopen
+1e13:010e fgetc
+1e56:0003 fclose
+1e72:0120 fread
+1ec4:008d itoa
+1ec4:00c1 ultoa
+1ec4:00e8 ltoa
+1ee9:0003 strlen
+1eeb:0005 strcpy
+1eee:0003 memcpy
+1ef6:0000 movmem                    # (void far *src, void far *dst, unsigned n)
+1f17:0005 printf
+1f1a:002a fputc
+1fdb:0007 sprintf
+1fde:0003 sscanf
+1ffe:0000 getch
+1ffe:004e ungetch
+2075:000c abs
+2077:002c ctrlbrk
+207d:0002 delay                     # calibrated busy loop, milliseconds
+2088:0008 getvect
+2088:0021 setvect
+2095:000c int86
+2095:0047 int86x
+20a3:000b kbhit                     # INT 21h AH=0Bh
+20b1:0023 rand                      # seed * 0x015A4E35 + 1
+20f7:0006 sound
+20f7:0039 nosound
+20fb:0007 textmode
+2100:0000 toupper
