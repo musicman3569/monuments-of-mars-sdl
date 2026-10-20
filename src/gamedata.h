@@ -31,6 +31,10 @@ typedef struct {
      * place (switches, levers) and puts a level back from its copy at DS:8809 when it ends. */
     uint8_t levels[LEVELS][LEVEL_BYTES];
 
+    /* What each level's computer terminal (code 70h) does, 1..4 (0 = nothing): the byte at
+     * level segment + 0Ch + level (TouchTile, 1054:3170). */
+    uint8_t terminal_action[LEVELS];
+
     uint8_t igs[IGS_BYTES]; /* the tile set; tile n at n * 0x80 (zero-padded like the fread) */
 
     int volume;          /* 1..4, from the EXE name */
@@ -46,6 +50,10 @@ const uint8_t *gamedata_ds(const gamedata_t *g, unsigned off, size_t len);
 
 /* The first string in the data segment that starts with `prefix`, or NULL. */
 const char *gamedata_find_string(const gamedata_t *g, const char *prefix);
+
+/* The string after `s` in the data segment (Turbo C lays string literals out one after the
+ * other), or NULL. */
+const char *gamedata_next_string(const gamedata_t *g, const char *s);
 
 /* "MARS1.CF1" etc.: the path of a file next to the EXE. */
 void gamedata_path(const gamedata_t *g, const char *ext, char *out, size_t outlen);

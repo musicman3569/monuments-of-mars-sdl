@@ -29,6 +29,19 @@ typedef struct {
 } collide_t;
 extern collide_t collide;
 
+/* The bytes the moving things' blitters sample before drawing (DS:075B-0760), raw. The game
+ * has one near-copy of BlitMasked_Buf2 per kind of thing, each sampling its own spots; the
+ * updaters then compare the bytes with 0, or with FFh (four pixels of colour 3). */
+extern uint8_t probe[6];
+
+/* A byte of the game's data segment where the back buffers live: back buffer 1 at DS:4983,
+ * back buffer 2 at DS:8A26, each 3E80h bytes (the 15999 bytes CopyBackground copies, rounded
+ * up). Samples above the top of buffer 2 land in buffer 1, as in the original; anything else
+ * reads as 0 (the original would read whatever variable is there). */
+uint8_t ds_peek(long ds_off);
+#define DS_BACK1 0x4983L
+#define DS_BACK2 0x8A26L
+
 /* Opaque: copy the pixel bytes, ignore the mask. */
 void blit_tile_buf1(const uint8_t *tile, int row, int col);   /* BlitTile_Buf1, 1054:18a4 */
 void blit_tile_buf2(const uint8_t *tile, int row, int col);   /* BlitTile_Buf2, 1054:1970 */
@@ -37,6 +50,16 @@ void blit_tile_screen(const uint8_t *tile, int row, int col); /* BlitTile_Screen
 /* Masked: dst = (dst & mask) | pixels. */
 void blit_masked_buf2(const uint8_t *tile, int row, int col);         /* 1054:1c3f */
 void blit_masked_buf2_collide(const uint8_t *tile, int row, int col); /* 1054:1ebb */
+
+/* The sampling near-copies of BlitMasked_Buf2 (dst = (dst & mask) | pixels into buffer 2):
+ * offsets are from the tile's top-left byte, 80 per row of the buffer (a scanline pair). */
+void blit_drip(const uint8_t *tile, int row, int col);       /* 1054:2092 -> probe[0..1] */
+void blit_boulder(const uint8_t *tile, int row, int col);    /* 1054:21e8 -> probe[0..3] */
+void blit_vplat(const uint8_t *tile, int row, int col);      /* 1054:2354 -> probe[0..2] */
+void blit_enemy49(const uint8_t *tile, int row, int col);    /* 1054:24ba -> probe[0..3] */
+void blit_enemy4a(const uint8_t *tile, int row, int col);    /* 1054:262f -> probe[0..3] */
+void blit_enemy4b(const uint8_t *tile, int row, int col);    /* 1054:279a -> probe[0..3] */
+void blit_hplat(const uint8_t *tile, int row, int col);      /* 1054:2907 -> probe[4..5] */
 
 void copy_background(void); /* CopyBackground, 1054:3cc5 */
 void present_frame(void);   /* PresentFrame, 1054:3ce3 */

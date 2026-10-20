@@ -78,18 +78,23 @@ Ghidra's auto-analysis missed functions in many small segments; expect to create
   (12 rows x 20 columns, one byte per tile). `main` copies the current one with
   `movmem(2226:0025 + level*0xF0, 2354:8809, 0xF0)`.
 - Level 1 shows stars (74-77) in the top rows and hills and ground (79/7A, slopes 7B/7C) at
-  the bottom.
+  the bottom. DrawLevel doesn't draw the stars; `DrawStars` (1054:74bf, called by UpdatePlayer)
+  draws them masked into back buffer 2 every frame, after the player, so they're on top.
 - `DrawLevel` (1054:31f3) reads the map row-major (index 0..239). The first guess here, that
   rows were shifted by a byte, was wrong: rendered, level 1's hills simply run off both edges.
 - Most bytes are drawn as `tile[b]`. These are **entities** instead (spawn points in lists
   of 3-byte records `type, byte col, row`), and are not drawn as tiles:
   04, 06, 46, 49, 4A, 4B, 55, 6E, and **65 = the player's start** (saved to 2354:05DC/05DE).
   55, 56-59 and 6F are entities *and* drawn.
-- Bytes 09-46, 56-59, 6E, 70 and 74-77 also go into a list at 2354:C9A8 (`type, col, row`)
-  with a flag at 2354:CC00 (0 for the stars 74-78): probably the cells that animate or can
-  be collected or destroyed.
+- Bytes 09-46, 56-59, 6E, 70 and 74-77 also go into the **specials** list at 2354:C9A8
+  (`code, col, row`, count [C92F]) with an active flag at 2354:CC00 (0 for the stars): what
+  `FindSpecialTileAt` / `TouchTile` act on, and what AnimateTiles animates (34-46).
 - 18 and 19 come in pairs on a row: 18 marks the left end, 19 the right end, stored as
-  `width, col, row` at 2354:4947. Probably patrol or platform ranges.
+  `width, col, row` at 2354:4947: the dripping ceilings.
+- The game edits the level **in the level segment** (switches, levers, blocks, gems) and puts
+  it back from its copy at DS:8809 when the level ends, restarts or the game ends.
+- The byte at level segment + 0Ch + level is that level's **terminal action** (code 70); MARS1
+  uses 2 on levels 11, 12 and 19, 3 on levels 13 and 15, 4 on level 20.
 - In the other volumes the level segment is 2241 (MARS2, MARS3) and 224D (MARS4); the tool
   finds it by matching DrawLevel's `mov ax,seg / mov es,ax / mov al,es:[bx+25h]`.
 
@@ -151,11 +156,16 @@ turns GhidraMCP's linear branch targets back into named `seg:off` and shows stri
    | 40       | F6     | give up: back to the level start (as if killed)         |
 
    Then, every frame: `CopyBackground`, `AnimateTiles`, `DrawBoulders`, `UpdateEnemies49`,
-   `UpdateEnemies4A`, `UpdateEnemies4B`, `UpdateDrips`, `UpdatePlayer`. If the game is
-   over ([05D5]) -> `CheckHighScore` -> back to the menu loop. Otherwise
-   `UpdateBoulders`, `UpdateTurret`, `PresentFrame`, `CheckLevelExit`, **wait for the
-   timer ISR to set [CCD1]** (the frame clock), handle death ([05D6] -> `FlashBackground`,
-   `RestartLevel`), `CheatLevelSkip`. A level change ([CCE9]) jumps back to step 5.
+   `UpdateEnemies4A`, `UpdateEnemies4B`, `UpdateDrips`, clear [C92E], `UpdatePlayer` (which
+   runs the platforms and the shot). If the game is over ([05D5]) -> `CheckHighScore` ->
+   back to the menu loop. Otherwise `UpdateBoulders`, `UpdateTurret`, `PresentFrame`,
+   `CheckLevelExit`, **wait for the timer ISR to set [CCD1]** (the frame clock), handle death
+   ([05D6] -> `FlashBackground`, `RestartLevel`), `CheatLevelSkip`. A level change ([CCE9])
+   jumps back to step 5.
+
+   The order matters for collisions: everything that can block or kill the player is drawn
+   into back buffer 2 before `UpdatePlayer` samples it. Scancode [C8AA] is never cleared, so
+   a held key acts on every frame (F6 kills again on the restarted level while held).
 
 ### Game state (DS 2354)
 
@@ -168,7 +178,7 @@ turns GhidraMCP's linear branch targets back into named `seg:off` and shows stri
 | 05DB       | level, 0-based (20 levels)                                             |
 | 05DC/05DE  | player x (byte column) / y (scanline pair)                             |
 | 4871 (long)| score; 0757/0759 = score at the level's start                          |
-| 8803/8806  | respawn position                                                       |
+| 8803/8806  | where the player died (RestartLevel draws the explosion there)          |
 | 8809       | the current level map (240 bytes)                                      |
 | C8AA       | last keyboard scancode                                                 |
 | CCD1       | frame tick from the timer ISR                                          |
@@ -227,46 +237,108 @@ Units: x is a byte column (4 px, 0..4C), y is a scanline pair (2 px, 0..54).
   costs one; there's no other way to get more except the menu cheat.
 - **Death** ([05D6]) comes from enemies, drips, the turret bolt and deadly tiles; F6 does the
   same. `RestartLevel` puts back the shots and score from the level's start.
+- The player's movement state ([05A8], [05E0]-[05F1]) is never reset: it starts from the data
+  segment's initial values (facing right, frame 1A, [05EA] = 1E until the first turn) and
+  carries over between levels.
+- On the frame a jump starts, [C92E] = 5, which makes the walkers' and the drip's kill box
+  13 rows tall instead of 8 on the next frame.
+
+### Moving things
+
+Each kind of thing has its own near-copy of BlitMasked_Buf2 that first samples a few bytes of
+back buffer 2 into [075B]-[0760] (offsets are rows / bytes from the tile's top-left):
+
+| Blitter (1054:)       | Samples                                    | Used by                     |
+|-----------------------|--------------------------------------------|-----------------------------|
+| BlitDrip 2092         | +8/+1, +8/+2 (under)                       | drip stops on anything      |
+| BlitBoulder 21e8      | +8/0, +8/+3 (under); +4/-1, +4/+4 (sides)  | boulders                    |
+| BlitVPlatform 2354    | -14/0 (above a rider); +11/+1, +11/+2      | turn at an FFh byte         |
+| BlitEnemy49 24ba      | -1/-1, -1/+4 (ceiling); +1/-1, +1/+4       | 49: needs a ceiling         |
+| BlitEnemy4A 262f      | +1/0, +1/+3; 0/-1, 0/+4                    | 4A                          |
+| BlitEnemy4B 279a      | +8/0, +8/+3 (floor); 0/-1, 0/+4 (walls)    | 4B: needs a floor           |
+| BlitHPlatform 2907    | +1/-1, +1/+4                               | turn at an FFh byte         |
+
+A sample above the top of buffer 2 reads back buffer 1's last rows, which sit just before it.
+
+- **Vertical platforms** (04, tile 04): a row every other frame, turning at an FFh byte (4
+  pixels of colour 3) or row < 8. Lever 16 -> 17 saves their states at [CCDF] and stops them.
+- **Horizontal platforms** (06, also drawn with tile 04): a byte every 3rd frame, turning at an
+  FFh byte or the edge; they move the player standing on them (8 rows above, within 2 bytes)
+  unless the player's wall sample says no.
+- **Walkers**, state 1 left / 0 right / 2 dead, 4 animation frames:
+  49 (tiles 49-4C) crawls along ceilings, a byte every 3rd frame, shot within 2 bytes x 4
+  rows, 500 points; 4A (4D-50, the robot) hovers, a byte every 2nd frame, turns when its top
+  row touches anything, 500; 4B (51-54) walks floors, 250 (4A and 4B are shot within 3
+  bytes x 6 rows). Turning skips that frame's hit tests; a walker shot dead can still kill on
+  the same frame. Touch: within 2 bytes x 7 rows (+5 on a jump's first frame) for 49 / 4A,
+  within 1 byte x 7 rows for 4B.
+- **Drips**: one at a time, from a random byte of a random 18-19 range (Turbo C `rand()`, never
+  seeded), a row per frame until there's anything under it.
+- **Turret** (46): when the player is within 6 rows, fires a bolt (tile 2A) towards them, a
+  byte per frame, until back buffer 1 has something in its path (half a tile down), it reaches
+  an edge, a boulder, or the player. Shooting its generator (6F) destroys it: +1500, the
+  turret becomes tile 6C and stops.
+- **Boulders** (6E): fall when nothing is under them, slide diagonally off an edge, and are
+  pushed a byte when the sampled byte beside them looks like the player's sprite (0B, 02 or
+  FF on the right; 80, E0 or FF on the left). They stop the shot and the bolt.
+- **The shot** (tile 0B, 2 bytes per frame) samples back buffer 1 at row +4 in front of it;
+  if anything is there it looks up the map cell: switches 0F-12 flip, levers flip when shot
+  from the side they lean (16 from the left, 17 from the right), 6F destroys the turret; codes
+  00, 04, 06, 09-0C, 0E, 1A-42, 44, 45, 47-5D, 5F-65, 6E (boulders stop it themselves) and
+  70-77 let it through; everything else stops it.
 
 ## Map codes
 
 | Code       | Tile(s)  | What                                                                      |
 |------------|----------|---------------------------------------------------------------------------|
 | 04         | 04       | vertical moving platform (`UpdateVPlatforms`); lever 16/17 stops and starts them |
-| 06         | 06       | horizontal moving platform, carries the player (`UpdateHPlatforms`)      |
+| 06         | 04       | horizontal moving platform, carries the player (`UpdateHPlatforms`)      |
+| 09 / 0A    | 09 / 0A  | force-field switch (Enter): 09 turns the 34 fields off, 0A on             |
 | 0B         | -        | (the player's shot)                                                       |
-| 0D         | 0D       | needs [05DA] (probably a key); then removed with a message               |
-| 0F-12      | 0F-12    | switches (Enter): flip each other and toggle the 37 force fields          |
-| 16 / 17    | 16 / 17  | lever (Enter): stop / restart the vertical platforms                     |
+| 0C         | 0C       | key card: +5000, "CARD!" on the status line ([05DA])                      |
+| 0D         | 0D       | door: opens (tiles 2F-33) if the player has the card; solid otherwise    |
+| 0E         | 0E       | +3 shots, +250                                                            |
+| 0F-12      | 0F-12    | switches (Enter or a shot): 0F/12 turn the 37 fields off, 10/11 on; all flip |
+| 16 / 17    | 16 / 17  | lever (Enter, or a shot): stop / restart the vertical platforms         |
 | 18 .. 19   | -        | left / right end of a dripping ceiling (`UpdateDrips`, drip = tile 26)   |
-| 34, 37     | 34-39    | force fields (animated), **deadly**                                       |
+| 34, 37     | 34-39    | force fields (animated), **deadly** while active                         |
 | 3A         | 3A-3C    | gem: +1000                                                                |
 | 3D         | 3D-3F    | spikes, **deadly**                                                        |
 | 40         | 40-42    | hanging electric barrier, **deadly**                                      |
 | 43         | 43-45    | energy rings, **deadly**                                                  |
 | 46         | 46       | turret: shoots a bolt (tile 2A) at the player, **deadly** to touch       |
-| 49         | 49-4C    | walker enemy; shot = +500                                                  |
-| 4A         | 4D-50    | walker enemy (robot)                                                       |
-| 4B         | 51-54    | walker enemy                                                               |
-| 55         | 55       | entity list at C8EF (not yet looked at)                                    |
-| 56-59      | 56-59    | the letters **M A R S** (flags 4946, 48B1, 8805, 8808)                     |
-| 5B -> 5C   | -        | teleporter (`TeleportTo5C`)                                               |
-| 5D -> 5E   | - / 01   | teleporter (`TeleportTo5E`); 5E is drawn as tile 01                        |
-| 64         | -        | level exit (invisible)                                                     |
+| 49         | 49-4C    | ceiling crawler; shot = +500                                              |
+| 4A         | 4D-50    | hovering robot; shot = +500                                               |
+| 4B         | 51-54    | floor walker; shot = +250                                                 |
+| 55         | 55       | energy ring holding an astronaut (list at C8EF); terminal 4 frees them (tile 1A) |
+| 56-59      | 56-59    | the letters **M A R S**: 2000 each; in order, +10000 and a fanfare (`CheckLetters`) |
+| 5B -> 5C   | -        | stepping on 5B (used up) makes a block (tile 01) appear at each 5C (`ShowBlocks5C`) |
+| 5D -> 5E   | - / 01   | stepping on 5D makes the 5E blocks vanish (`HideBlocks5E`)                |
+| 5F         | -        | hidden gem: terminal action 3 turns it into a 3A (`RevealGems`)          |
+| 64         | -        | level exit (invisible): +2000 + 100 x level                               |
 | 65         | -        | player start                                                               |
-| 6E         | 6E       | probably a pushable boulder (`UpdateBoulders`): falls, pushed, stops shots  |
-| 6F         | 6F       | position kept at [C8AB]/[C8AC] (not yet looked at)                        |
-| 70         | 70       | computer terminal (Enter): per-level action from a table at 2226:000C       |
-| 74-77      | 74-77    | stars (background, twinkle)                                                |
-| 81 / 82    | -        | end of volume: "YOU HAVE DEACTIVATED THE ENERGY RINGS..." (`ShowRescueMessage`) |
+| 6C         | 6C       | (the destroyed turret)                                                     |
+| 6E         | 6E       | boulder (`UpdateBoulders`): falls, pushed, stops shots                     |
+| 6F         | 6F       | the turret's generator ([C8AB]/[C8AC]): shoot it to destroy the turret   |
+| 70         | 70       | computer terminal (Enter): 1 = ShowBlocks5C, 2 = HideBlocks5E, 3 = RevealGems, 4 = free the astronauts, rescue message, +50000 |
+| 74-77      | 74-77    | stars (background, twinkle), drawn over everything                       |
+| 81 / 82    | -        | "YOU HAVE DEACTIVATED THE ENERGY RINGS..." (`ShowRescueMessage`), unused in MARS1 |
 
 Everything else is plain scenery: drawn, and solid if it has pixels where the player samples.
 
+`FindSpecialTileAt` returns 0 ("plain wall") for boulders, 14, 15, a closed door and the
+switches; the player can only walk into a pixel-solid spot when it returns another code.
+`TouchTile` can run up to five times a frame (the air, both walls, ground, step-up checks),
+so holding Enter on a lever or a 09/0A switch can flip it more than once.
+
+Some levels start the player above a shaft with spikes at the bottom (8 and 13 in MARS1): an
+idle player dies over and over; you have to steer right while falling.
+
 ### Still open
 
-- The terminal (70) action table and what code 0D needs.
-- Codes 55 and 6F, and what collecting all of M-A-R-S does (`0825`, `58ab`).
-- The rest of `UpdatePlayerShot` (2.5 KB) and `UpdateBoulders`: how shots stop.
+- Codes 14 / 15 (FindSpecialTileAt ignores them; they're common ground tiles).
+- What 81 / 82 are for (no MARS1 level uses them).
+- Whether the other volumes' rescue and ending texts have the same number of lines.
 
 ## Timing
 

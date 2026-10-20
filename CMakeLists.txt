@@ -17,6 +17,7 @@ add_executable(mars
     src/lzexe.c
     src/gamedata.c
     src/level.c
+    src/game.c
 )
 
 if(TARGET SDL2::SDL2main)

@@ -48,6 +48,19 @@ const rgb_t *cga_palette(int palette, int bright);
 /* The palette the game has selected (SetVideoMode / SetVideoModePal1Bright). */
 extern int cga_cur_palette, cga_cur_bright;
 
+/* SetVideoMode (1054:0a36): mode 4, black background, palette 0 low intensity, and
+ * SetVideoModePal1Bright (1054:0aa7): the same with palette 1 bright. Clears the screen.
+ * A palette override (--palette / --bright) replaces the game's choice when >= 0. */
+void cga_set_mode(int palette, int bright);
+extern int cga_palette_override, cga_bright_override;
+
+/* The background colour, 0..15 (INT 10h AH=0Bh BH=0): colour 0 of the palette. The game
+ * flashes it when things happen (FlashBackground and friends). */
+extern int cga_cur_background;
+
+/* The four colours on screen now: the current palette with the background colour. */
+const rgb_t *cga_cur_colors(void);
+
 /* Expand video memory to 0xAARRGGBB pixels; pitch is in pixels. */
 void cga_to_argb(uint32_t *out, int pitch, const rgb_t *pal);
 

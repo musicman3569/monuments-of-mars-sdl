@@ -26,9 +26,9 @@
 1054:0471 ClearScreen_guess         # zeroes 0x3F5E bytes
 1054:057a InputName                 # high-score name entry (getch, toupper)
 1054:088d DrawShots                 # "SHOTS  " + [2354:05D8]
-1054:099c FlashBackground_guess     # INT 10h AH=0Bh background colour flash (player death / F6)
+1054:099c FlashBackground           # INT 10h AH=0Bh background red then black (player death / F6)
 1054:0e53 DrawScore                 # score is the long at 2354:4871
-1054:3823 AnimateTiles_guess        # walks the list at 2354:C9A8 (count C92F), redraws into back buffer 1
+1054:3823 AnimateTiles              # walks the list at 2354:C9A8 (count C92F), redraws into back buffer 1
 1054:3cc5 CopyBackground            # back buffer 1 (2354:4983) -> back buffer 2 (2354:8A26), 15999 bytes
 1054:3ce3 PresentFrame              # back buffer 2 -> B800 + 0x140, both banks
 1054:3d43 UpdatePlayer              # player at [05DC],[05DE]; input, sounds, collision blit
@@ -38,8 +38,8 @@
 1054:53e7 UpdateEnemies4B           # walker, tiles 51-54
 1054:55d9 UpdateDrips               # 18..19 ceiling ranges: drop tile 26 from a random column until it hits something
 1054:56c9 UpdateTurret              # code 46 at [CCDA],[CCDB]: fires a bolt (tile 2A) at the player when |dy|<7
-1054:5978 UpdateBoulders_guess      # code 6E list (count CCCF): falls, pushed by the player, stops shots
-1054:5ba4 DrawBoulders_guess        # code 6E list, masked blit
+1054:5978 UpdateBoulders            # code 6E list (count CCCF): falls, slides off edges, pushed by the player, stops shots and bolts
+1054:5ba4 DrawBoulders              # code 6E list, BlitBoulder before anything moves
 1054:5bf2 RestartLevel              # after death / F6: shots = shots at level start, redraw status
 1054:5d20 CheatLevelSkip            # Caps Lock on: PgDn (51h) next level, ` (29h) previous level
 1054:5dc3 ShowSpecialNotice         # first run only (no MARS1.SPD): "*** SPECIAL NOTICE ***"
@@ -61,14 +61,14 @@
 
 # Player, objects and tile effects
 1054:0fce FindSpecialTileAt         # (y, x): active entry of the C9A8 list within |dx|<3,|dy|<8 -> its code; handles 0D and switches 0F-12
-1054:2b08 TouchTile                 # (code): deadly tiles, gem, M/A/R/S letters, levers 16/17, terminal 70
+1054:2b08 TouchTile                 # (code): deadly tiles, gem, card, +3 shots, M/A/R/S, levers 16/17, switches 09/0A, terminal 70
 1054:2a5b EnemyExplosion            # sound + explosion tiles 2A-2E
 1054:38a9 UpdateVPlatforms          # code 04 list: up/down every other frame, reverse when blocked
 1054:398e UpdateHPlatforms          # code 06 list: sideways every 3rd frame, carries the player
 1054:45d3 UpdatePlayerShot          # fire: spawn a shot (tile 0B) if none active and shots > 0; move it 2 bytes/frame
-1054:4126 TeleportTo5C              # standing on 5B: move the player to the 5C cell
-1054:427c TeleportTo5E              # standing on 5D: move the player to the 5E cell
-1054:0b18 ShowRescueMessage         # standing on 81/82: "YOU HAVE DEACTIVATED THE ENERGY RINGS..."
+1054:4126 ShowBlocks5C              # 5B plate / terminal 1: a block (tile 01) appears at every 5C cell
+1054:427c HideBlocks5E              # 5D plate / terminal 2 and 4: the 5E blocks vanish
+1054:0b18 ShowRescueMessage         # terminal 4, or standing on 81/82: "YOU HAVE DEACTIVATED THE ENERGY RINGS..."; waits for a key
 
 # --- Turbo C runtime (huge model; each module loads its own DS) ---
 1d4f:0014 exit
@@ -102,3 +102,27 @@
 20f7:0039 nosound
 20fb:0007 textmode
 2100:0000 toupper
+
+# Found while porting the frame loop
+1054:068b SoundJump
+1054:0724 SoundDrip
+1054:0795 SoundSwitch               # levers, switches, terminals
+1054:0825 SoundPickup
+1054:08cb FlashBlue                 # background 1 then 0
+1054:0918 SetBackground             # (colour): INT 10h AH=0Bh BH=0
+1054:094f FlashYellow               # background 0Eh then 0
+1054:09e9 FlashGreen                # background 2 then 0
+1054:0ca4 ShowEnding                # after level 20: "YOUR JOURNEY CONTINUES...", sets [05D5]
+1054:0e86 RevealGems                # terminal 3: invisible 5F cells become gems (3A)
+1054:1d7d BlitMasked_Buf2_Shot      # masked, no samples (the player's shot)
+1054:2092 BlitDrip                  # masked + samples under it -> [075B],[075C]
+1054:21e8 BlitBoulder               # masked + samples under / beside it -> [075B]-[075E]
+1054:2354 BlitVPlatform             # masked + samples above / under it -> [075B]-[075D]
+1054:24ba BlitEnemy49               # masked + samples -> [075B]-[075E]
+1054:262f BlitEnemy4A
+1054:279a BlitEnemy4B
+1054:2907 BlitHPlatform             # masked + samples -> [075F],[0760]
+1054:58ab CheckLetters              # M-A-R-S: 2000 per letter flag set, 10000 when taken in order
+1054:74bf DrawStars                 # 74-77 drawn masked over everything, every frame
+# 1054:1a3c DeactivateRings (terminal 4: code 55 rings flicker out, freed astronauts appear)
+#           isn't a function in Ghidra yet (it sits after BlitTile_Buf2's body)

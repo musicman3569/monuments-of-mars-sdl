@@ -57,6 +57,7 @@ static int find_segments(gamedata_t *g, char *err, size_t errlen)
     }
     for (int i = 0; i < LEVELS; i++)
         memcpy(g->levels[i], im + g->level_seg + 0x25 + (size_t)i * LEVEL_BYTES, LEVEL_BYTES);
+    memcpy(g->terminal_action, im + g->level_seg + 0x0C, LEVELS);
     return 0;
 }
 
@@ -161,4 +162,12 @@ const char *gamedata_find_string(const gamedata_t *g, const char *prefix)
         if ((i == g->ds || g->image[i - 1] == 0) && !memcmp(g->image + i, prefix, n))
             return (const char *)g->image + i;
     return NULL;
+}
+
+const char *gamedata_next_string(const gamedata_t *g, const char *s)
+{
+    if (!s)
+        return NULL;
+    const size_t at = (size_t)((const uint8_t *)s - g->image) + strlen(s) + 1;
+    return at < g->image_len && at < g->ds + 0x10000 ? (const char *)g->image + at : NULL;
 }

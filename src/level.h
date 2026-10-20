@@ -47,8 +47,4 @@ void level_draw(level_t *lv, const gamedata_t *g, int number);
  * with the next of their 3 frames. Once per game frame. */
 void level_animate_tiles(level_t *lv, const gamedata_t *g);
 
-/* Port stand-in until the updaters are ported: draw the moving things and the player into
- * back buffer 2 in their first frame, roughly as the game's first frame shows them. */
-void level_draw_sprites_preview(const level_t *lv, const gamedata_t *g);
-
 #endif

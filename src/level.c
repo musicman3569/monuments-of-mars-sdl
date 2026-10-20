@@ -116,20 +116,3 @@ void level_animate_tiles(level_t *lv, const gamedata_t *g)
     if (lv->anim_phase > 0x100)
         lv->anim_phase = 0;
 }
-
-static void draw_list(const list_t *l, const gamedata_t *g, int tile)
-{
-    for (int i = 0; i < l->n; i++)
-        blit_masked_buf2(tile_ptr(g, tile), l->r[i].row, l->r[i].col);
-}
-
-void level_draw_sprites_preview(const level_t *lv, const gamedata_t *g)
-{
-    draw_list(&lv->vplat, g, 0x04);
-    draw_list(&lv->hplat, g, 0x06);
-    draw_list(&lv->boulders, g, 0x6E);
-    draw_list(&lv->enemy49, g, 0x49);
-    draw_list(&lv->enemy4a, g, 0x4D);
-    draw_list(&lv->enemy4b, g, 0x51);
-    blit_masked_buf2(tile_ptr(g, 0x1B), lv->player_row, lv->player_col); /* facing right */
-}

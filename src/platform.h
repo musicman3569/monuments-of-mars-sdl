@@ -38,6 +38,10 @@ int plat_getch(void);
 /* Turbo C delay(ms). */
 void plat_delay(int ms);
 
+/* Caps Lock is on: bit 6 of the BIOS keyboard flags at 0040:0017 (the game reads them through
+ * the far pointer at [CCD6]). */
+bool plat_caps_lock(void);
+
 /* BIOS timer ticks (18.2 Hz) since start: the timer ISR at 1054:7aba counts them in [CCD1]. */
 unsigned plat_ticks(void);
 

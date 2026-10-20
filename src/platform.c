@@ -21,6 +21,15 @@ static bool quitting, dirty = true;
 static Uint64 start_counter, perf_freq;
 static int shot_no;
 
+/* The clock also works without plat_init (--screenshot / --script run without a window). */
+static void timer_init(void)
+{
+    if (!perf_freq) {
+        perf_freq = SDL_GetPerformanceFrequency();
+        start_counter = SDL_GetPerformanceCounter();
+    }
+}
+
 /* BIOS keyboard buffer: what getch sees. Extended keys are stored as 0, scancode. */
 static int keybuf[64];
 static int key_head, key_tail;
@@ -176,8 +185,7 @@ int plat_init(const char *title, char *err, size_t errlen)
     if (audio)
         SDL_PauseAudioDevice(audio, 0);
 
-    perf_freq = SDL_GetPerformanceFrequency();
-    start_counter = SDL_GetPerformanceCounter();
+    timer_init();
     return 0;
 }
 
@@ -202,7 +210,7 @@ static void present(void)
     int pitch;
     if (SDL_LockTexture(tex, NULL, &pixels, &pitch) != 0)
         return;
-    cga_to_argb(pixels, pitch / 4, cga_palette(cga_cur_palette, cga_cur_bright));
+    cga_to_argb(pixels, pitch / 4, cga_cur_colors());
     SDL_UnlockTexture(tex);
     SDL_RenderClear(ren);
     SDL_RenderCopy(ren, tex, NULL, NULL);
@@ -256,6 +264,7 @@ int plat_getch(void)
 
 void plat_delay(int ms)
 {
+    timer_init();
     const Uint64 until = SDL_GetPerformanceCounter() + perf_freq * (Uint64)(ms > 0 ? ms : 0) / 1000;
     do {
         plat_poll();
@@ -267,15 +276,25 @@ void plat_delay(int ms)
     } while (1);
 }
 
+bool plat_caps_lock(void)
+{
+    return (SDL_GetModState() & KMOD_CAPS) != 0;
+}
+
 unsigned plat_ticks(void)
 {
+    timer_init();
     /* the PIT's 1193182 Hz / 65536 */
     return (unsigned)((SDL_GetPerformanceCounter() - start_counter) * 1193182 / 65536 / perf_freq);
 }
 
 void plat_sound(int hz)
 {
-    if (hz > 18) /* the PIT divisor can't go lower (Turbo C sound() computes 1193180 / hz) */
+    /* The game uses sound(7FFFh) as "quiet": 33 kHz, which a PC speaker can't reproduce but a
+     * 44.1 kHz square wave would alias into an audible whine. */
+    if (hz > 20000)
+        SDL_AtomicSet(&speaker_hz, 0);
+    else if (hz > 18) /* the PIT divisor can't go lower (Turbo C sound() computes 1193180 / hz) */
         SDL_AtomicSet(&speaker_hz, hz);
 }
 
@@ -286,5 +305,5 @@ void plat_nosound(void)
 
 int plat_screenshot(const char *path)
 {
-    return cga_write_png(path, cga_palette(cga_cur_palette, cga_cur_bright), 2);
+    return cga_write_png(path, cga_cur_colors(), 2);
 }

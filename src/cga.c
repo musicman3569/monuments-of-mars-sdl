@@ -5,7 +5,7 @@
 #include <string.h>
 
 uint8_t cga_vram[CGA_VRAM_SIZE];
-int cga_cur_palette, cga_cur_bright;
+int cga_cur_palette, cga_cur_bright, cga_cur_background;
 
 static int png_write_argb(const char *path, const uint32_t *px, int width, int height);
 
@@ -20,14 +20,39 @@ static const rgb_t palettes[2][2][4] = {
     },
 };
 
+int cga_palette_override = -1, cga_bright_override;
+
 void cga_clear(void)
 {
     memset(cga_vram, 0, sizeof cga_vram);
 }
 
+void cga_set_mode(int palette, int bright)
+{
+    cga_clear();
+    cga_cur_palette = cga_palette_override >= 0 ? cga_palette_override : palette;
+    cga_cur_bright = cga_palette_override >= 0 ? cga_bright_override : bright;
+    cga_cur_background = 0;
+}
+
 const rgb_t *cga_palette(int palette, int bright)
 {
     return palettes[palette & 1][bright ? 1 : 0];
+}
+
+const rgb_t *cga_cur_colors(void)
+{
+    /* The 16 RGBI colours, with the CGA monitor's brown for 6. */
+    static const rgb_t rgbi[16] = {
+        {0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA},
+        {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA}, {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA},
+        {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
+        {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF},
+    };
+    static rgb_t cur[4];
+    memcpy(cur, cga_palette(cga_cur_palette, cga_cur_bright), sizeof cur);
+    cur[0] = rgbi[cga_cur_background & 15];
+    return cur;
 }
 
 void cga_to_argb(uint32_t *out, int pitch, const rgb_t *pal)

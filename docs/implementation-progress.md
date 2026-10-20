@@ -32,33 +32,49 @@ The user is learning, so explain findings as you go. They **prefer CGA palette 0
 ## Running
 
 ```
-build/mars.exe game/MARS1.EXE                 # title screen, then the level viewer
-build/mars.exe game/MARS1.EXE --level 5       # straight to a level
-build/mars.exe game/MARS1.EXE --level 5 --screenshot out.png   # no window
+build/mars.exe game/MARS1.EXE                 # title screen, then play from level 1
+build/mars.exe game/MARS1.EXE --level 5       # straight into level 5
+build/mars.exe game/MARS1.EXE --level 5 --screenshot out.png   # its first frame, no window
+build/mars.exe game/MARS1.EXE --level 2 --script "30 10r 12 1rf 40"   # scripted test run
 ```
 
 The EXE may be the packed original or an unpacked one; MARSn.IGS / .CF1 must be next to it.
-In the viewer: PgUp / PgDn change level, Esc quits, F12 saves `shotNNN.png`.
+Keys: arrows walk, Space jumps, Ctrl fires (placeholders until the key config is ported),
+Enter uses switches / levers / terminals, Q or Esc then Y quits, F1 sound, F5 pause, F6 give
+up, Caps Lock + PgDn / ` skips levels (the game's cheat). F12 saves `shotNNN.png`.
+
+`--script` (port extra, for testing) plays without a window and without waiting for the timer,
+holding the keys of each token for its frame count (`l r j f e` = left, right, jump, fire,
+Enter; "40" = 40 frames of nothing), then prints the level, position, shots, score and deaths.
+With `--screenshot` it writes the last frame.
 
 ## Completed
 
 - Reverse engineering: see `docs/notes.md` (program flow, graphics, levels, input, player,
-  map codes).
-- Port skeleton (`src/`):
+  moving things, map codes). Every function the frame loop reaches is decoded and named in
+  `analysis/MARS1.names.txt` (applied to Ghidra).
+- Port (`src/`):
   - `gamedata` loads the EXE (unpacking LZEXE with `lzexe.c` from ptomb-port), finds the data
-    and level segments from DrawLevel's code, copies the 20 level maps and the font, reads the
-    IGS tile set.
-  - `cga` keeps video memory **in the real CGA bank layout**; `gfx` has the tile blitters and
-    the two back buffers in the same layout, ported 1:1 with the collision samples.
+    and level segments from DrawLevel's code, copies the 20 level maps, the terminal actions
+    and the font, reads the IGS tile set.
+  - `cga` keeps video memory **in the real CGA bank layout** (plus the background colour the
+    game flashes); `gfx` has the tile blitters, the two back buffers in the same layout, and
+    the sampling blitters (collision probes), ported 1:1.
   - `text` is DrawText (letter/digit remapping into the game's font at DS:0006, punctuation
     from ptomb-port's own 8x8 font) and DrawNumber.
   - `level` is DrawLevel (all four passes and the entity lists) and AnimateTiles.
+  - `game` is main's level start and frame loop and everything under it: UpdatePlayer (walk,
+    jump, gravity, step-up, collisions), UpdatePlayerShot, both platform kinds, the three
+    walkers, drips, turret and generator, boulders, stars, FindSpecialTileAt / TouchTile (all
+    codes, incl. card / door, switches, levers, M-A-R-S, blocks 5B-5E, terminals 1-4, rescue
+    message), CheckLevelExit (incl. the end of the volume and the ending text), RestartLevel,
+    CheatLevelSkip, and the in-game keys Q/Esc, F1, F5, F6 with their banners.
   - `platform` is SDL2: window, PC/XT scancodes fed through a copy of the game's keyboard ISR,
-    getch / kbhit, delay, the 18.2 Hz tick, PC speaker tone.
-  - `main` shows the title screen (CF1 + "VOL. n - ..." from the EXE) and a level viewer at
-    18.2 frames per second.
-- Checked: title screens of volumes 1 and 2, levels from all four volumes, packed and unpacked
-  EXEs give identical output.
+    getch / kbhit, delay, the 18.2 Hz tick, Caps Lock, PC speaker tone.
+  - `main` shows the title screen (CF1 + "VOL. n - ..." from the EXE), then plays.
+- Checked with `--script`: walking over slopes, falling, the level 1 exit (-> level 2, +2000),
+  dying and restarting, shooting a robot (+500), picking up +3 shots and a gem; all 20 MARS1
+  levels and levels of MARS2-4 run 150 frames without trouble; the windowed game runs.
 
 ## Architectural decisions and why
 
@@ -70,25 +86,40 @@ In the viewer: PgUp / PgDn change level, Esc quits, F12 saves `shotNNN.png`.
 - **One frame per 18.2 Hz tick**, as the original's frame loop waits for its timer ISR
   ([CCD1], incremented by 1054:7aba on INT 1Ch).
 - **The level maps are a mutable copy** in `gamedata_t`: the game edits its level segment in
-  place (switches, levers) and restores a level from its backup at DS:8809 when it ends.
+  place (switches, levers, blocks, gems) and restores a level from its backup at DS:8809 when
+  it ends.
+- **The game's variables stay globals** in `game.c`, named and commented with their DS
+  addresses: the routines share them freely, and keeping that shape keeps the port checkable
+  against the disassembly.
+- **Blocking effects stay blocking** (delay / sound sequences, the door, the rings, the rescue
+  message): `plat_delay` keeps the window alive meanwhile, so the game's single-threaded
+  structure is kept as is.
 
 ## Verified vs assumed
 
-- Verified against the code: everything in `gfx`, `text`, `level_draw`, the status line layout.
-- **Not yet compared with the original running in DOSBox.** In particular: the code never draws
-  the stars (map codes 74-77) during play; check whether level 1 really has no stars.
-- `level_draw_sprites_preview` is a stand-in (first animation frame of each moving thing and
-  the player facing right), not the game's code.
+- Verified against the code: `gfx`, `text`, `level_draw`, the status line layout, and `game`
+  routine by routine (decompiler output cross-checked with the disassembly wherever Ghidra's
+  output was garbled: TouchTile's jump table, UpdatePlayerShot, the rescue / ending screens).
+- **Not yet compared with the original running in DOSBox.** Worth checking side by side: the
+  feel of jumping and walking, the shot / boulder interactions, the drip RNG sequence.
+- Not exercised by a test yet: switches / force fields, levers, the turret and its generator,
+  boulders being pushed, card and door, M-A-R-S, terminals, the end of a volume.
+- Deviations: the background flashes are as brief as the original's (they set and reset the
+  colour back to back), so they hardly show; after level 20 the port ends the game straight
+  away, where the original first draws "LEVEL 21" over a level built from the bytes after the
+  level table; window close quits from any wait.
 - The jump / fire keys are placeholders (Space / Ctrl) until ApplyKeyConfig (1054:6a94) is
-  ported.
+  ported. The main menu, high scores and save / restore (S / R in game) aren't ported: the
+  port goes straight from the title into the game and exits when it's over.
+- The rescue and ending texts are read from the EXE by their first line and the lines after
+  it; only MARS1's layout has been checked.
 
 ## Next steps (suggested order)
 
-1. Port the frame loop: UpdatePlayer, the platforms, enemies, drips, turret, boulders, shots,
-   TouchTile / FindSpecialTileAt, CheckLevelExit, RestartLevel. Replace the preview.
-2. Key config (MARS1.KBD, ApplyKeyConfig / ConfigKeyboard) and the in-game keys (Q/Esc, S, R,
-   F1, F5, F6) with their banners.
-3. Main menu (CF2, palette 1 bright), instructions / story / ordering screens, high scores,
-   save / restore, MARS1.SPD and the special notice.
-4. Sound effects (they're inline PlaySound / delay sequences) and the Genus PCX transitions.
-5. Close the open questions in `docs/notes.md` (terminal 70, codes 0D, 55, 6F, M-A-R-S bonus).
+1. Play-test against DOSBox, especially the mechanics listed above as not exercised.
+2. Key config (MARS1.KBD, ApplyKeyConfig / ConfigKeyboard).
+3. Main menu (CF2, palette 1 bright, the 20-shot cheat), instructions / story / ordering
+   screens, high scores (LoadHighScores, CheckHighScore, InputName), save / restore (S / R
+   in game, MARS1.SV1 / .SV2), MARS1.SPD and the special notice.
+4. The Genus PCX transitions on the title screen.
+5. Close the open questions in `docs/notes.md` (codes 14 / 15, 81 / 82).

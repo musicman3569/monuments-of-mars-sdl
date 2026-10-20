@@ -5,6 +5,7 @@
 uint8_t back1[CGA_VRAM_SIZE];
 uint8_t back2[CGA_VRAM_SIZE];
 collide_t collide;
+uint8_t probe[6];
 
 /* The status line takes the first 8 scanlines (4 rows of each bank). */
 #define PLAYFIELD 0x140
@@ -67,9 +68,73 @@ void blit_masked_buf2(const uint8_t *tile, int row, int col)
     blit_masked(back2, tile, row, col);
 }
 
+#define BUF_BYTES 0x3E80
+
+uint8_t ds_peek(long ds_off)
+{
+    if (ds_off >= DS_BACK2 && ds_off < DS_BACK2 + BUF_BYTES)
+        return back2[ds_off - DS_BACK2];
+    if (ds_off >= DS_BACK1 && ds_off < DS_BACK1 + BUF_BYTES)
+        return back1[ds_off - DS_BACK1];
+    return 0;
+}
+
 static uint8_t sample(int off)
 {
-    return off >= 0 && off < CGA_VRAM_SIZE && back2[off] != 0;
+    return ds_peek(DS_BACK2 + off) != 0;
+}
+
+/* Sample n bytes of buffer 2 into probe[first..], then draw. */
+static void blit_probe(const uint8_t *tile, int row, int col, int first, int n, const int *offs)
+{
+    const int at = row * CGA_STRIDE + col;
+    for (int i = 0; i < n; i++)
+        probe[first + i] = ds_peek(DS_BACK2 + at + offs[i]);
+    blit_masked(back2, tile, row, col);
+}
+
+#define ROW(r) ((r) * CGA_STRIDE)
+
+void blit_drip(const uint8_t *tile, int row, int col)
+{
+    static const int o[] = {ROW(8) + 1, ROW(8) + 2}; /* under it */
+    blit_probe(tile, row, col, 0, 2, o);
+}
+
+void blit_boulder(const uint8_t *tile, int row, int col)
+{
+    static const int o[] = {ROW(8), ROW(8) + 3, ROW(4) - 1, ROW(4) + 4}; /* under; left, right */
+    blit_probe(tile, row, col, 0, 4, o);
+}
+
+void blit_vplat(const uint8_t *tile, int row, int col)
+{
+    static const int o[] = {-ROW(14), ROW(11) + 1, ROW(11) + 2}; /* above a rider; under it */
+    blit_probe(tile, row, col, 0, 3, o);
+}
+
+void blit_enemy49(const uint8_t *tile, int row, int col)
+{
+    static const int o[] = {-ROW(1) - 1, -ROW(1) + 4, ROW(1) - 1, ROW(1) + 4};
+    blit_probe(tile, row, col, 0, 4, o);
+}
+
+void blit_enemy4a(const uint8_t *tile, int row, int col)
+{
+    static const int o[] = {ROW(1), ROW(1) + 3, -1, 4};
+    blit_probe(tile, row, col, 0, 4, o);
+}
+
+void blit_enemy4b(const uint8_t *tile, int row, int col)
+{
+    static const int o[] = {ROW(8), ROW(8) + 3, -1, 4};
+    blit_probe(tile, row, col, 0, 4, o);
+}
+
+void blit_hplat(const uint8_t *tile, int row, int col)
+{
+    static const int o[] = {ROW(1) - 1, ROW(1) + 4};
+    blit_probe(tile, row, col, 4, 2, o);
 }
 
 void blit_masked_buf2_collide(const uint8_t *tile, int row, int col)
