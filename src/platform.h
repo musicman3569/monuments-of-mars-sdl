@@ -35,6 +35,14 @@ bool plat_quitting(void);
 bool plat_kbhit(void);
 int plat_getch(void);
 
+/* For loops that wait for a key without taking it (while (!kbhit()) ...): plat_kbhit, except
+ * that without a window it writes a screenshot and says yes. */
+bool plat_key_pressed(void);
+
+/* Port extra for --show: without a window, every wait for a key (getch, plat_key_pressed)
+ * writes <base>-N.png, then acts as if Esc was pressed. */
+void plat_capture_waits(const char *base);
+
 /* Turbo C delay(ms). */
 void plat_delay(int ms);
 

@@ -8,7 +8,7 @@
 # --- Main program (segment 1054, data segment 2354) ---
 1054:7adb main
 1054:3b5f LoadIGS                   # fopen(name,"rb") or "incomplete version" screen + exit(1); fread 0x413C bytes -> 2354:0766
-1054:03e4 DrawString_guess          # (x, y, char far *s, color); text cells, used by the LoadIGS error screen
+1054:03e4 DrawStringTextMode        # (x, y, char far *s, attr): 80x25 text mode, 10 passes of random reveal; error / quit screens
 1054:0a36 SetVideoMode              # INT 10h AH=0 AL=mode; black background; CGA palette 0 low intensity (gameplay)
 1054:0aa7 SetVideoModePal1Bright    # same, but palette 1 high intensity (main menu, CF2)
 1054:0e34 PlaySound                 # sound(freq) if sound is on ([2354:05D7])
@@ -23,8 +23,8 @@
 1054:0001 SetHighFont               # INT 1Fh vector (font for chars 80h-FFh) -> 2354:(arg); 0006 normal, 01A6 alternate
 1054:0028 DrawText                  # (color, char far *s, row, col) via BIOS INT 10h, graphics mode
 1054:0316 DrawNumber                # ltoa + DrawText
-1054:0471 ClearScreen_guess         # zeroes 0x3F5E bytes
-1054:057a InputName                 # high-score name entry (getch, toupper)
+1054:0471 ClearScreen               # zeroes 0x3F5E bytes of video memory
+1054:057a InputName                 # (col, row, max, char far *buf, color): A-Z 0-9 space . ! ?, Backspace, Enter; DrawChar
 1054:088d DrawShots                 # "SHOTS  " + [2354:05D8]
 1054:099c FlashBackground           # INT 10h AH=0Bh background red then black (player death / F6)
 1054:0e53 DrawScore                 # score is the long at 2354:4871
@@ -42,7 +42,7 @@
 1054:5ba4 DrawBoulders              # code 6E list, BlitBoulder before anything moves
 1054:5bf2 RestartLevel              # after death / F6: shots = shots at level start, redraw status
 1054:5d20 CheatLevelSkip            # Caps Lock on: PgDn (51h) next level, ` (29h) previous level
-1054:5dc3 ShowSpecialNotice         # first run only (no MARS1.SPD): "*** SPECIAL NOTICE ***"
+1054:5dc3 ShowSpecialNotice         # first run (no MARS1.SPD) and after the instructions: "*** SPECIAL NOTICE ***"
 1054:5ee9 TitleScreen               # CF1 with a Genus effect, "VOL. 1 - FIRST CONTACT", MARS1.SPD check
 1054:6106 ShowInstructions
 1054:6750 ShowStory                 # "THE STORY SO FAR..."
@@ -54,7 +54,7 @@
 1054:6eb8 MainMenu                  # J/Enter/Space play, I, S, O, C, H, Esc/Q quit; '>' + Caps Lock = 20 shots
 1054:7526 LoadHighScores            # MARS1.HS: 10 x ("%lu" score, "%[^\n]" name); defaults if missing
 1054:766b SaveHighScores
-1054:76f2 ShowHighScores            # "*** HIGH SCORES ***"
+1054:76f2 ShowHighScores            # "*** HIGH SCORES ***" on a SetVideoMode(4) screen
 1054:77be CheckHighScore            # game over: insert score, InputName, SaveHighScores
 1054:7960 SaveGame                  # S key: MARS1.SV1 (level, shots), MARS1.SV2 ("%lu" score)
 1054:79fa RestoreGame               # R key
@@ -126,3 +126,8 @@
 1054:74bf DrawStars                 # 74-77 drawn masked over everything, every frame
 # 1054:1a3c DeactivateRings (terminal 4: code 55 rings flicker out, freed astronauts appear)
 #           isn't a function in Ghidra yet (it sits after BlitTile_Buf2's body)
+
+# Found while porting the menu
+1054:01d6 DrawChar                  # (color, ch, row, col): one character via BIOS, DrawText's mapping but with '_' and without = ?
+1054:036b ClearTextScreen           # 80x25 text mode: spaces, attribute 07
+1054:03a2 PutTextCell               # (x, y, ch, attr) -> B800

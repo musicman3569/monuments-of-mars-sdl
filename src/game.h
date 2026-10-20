@@ -12,7 +12,8 @@ void game_play(gamedata_t *g, int level, int shots);
 
 /* Port extra for testing (--script): play with the keys given by `script` instead of the
  * keyboard, as fast as possible, then print where the player got to. Tokens are a frame count
- * followed by the keys held, from l r j f e (left, right, jump, fire, Enter): "20r 6rj 40". */
+ * followed by the keys held, from l r j f e (left, right, jump, fire, Enter), or S / R
+ * (save / restore, answering Y): "20r 6rj 40". */
 void game_run_script(gamedata_t *g, int first_level, int start_shots, const char *script);
 
 #endif

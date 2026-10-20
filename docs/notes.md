@@ -68,9 +68,23 @@ Ghidra's auto-analysis missed functions in many small segments; expect to create
 | MARSn.CF1   | 7,947  | PCX title screen ("by Todd Replogle"), palette 0        |
 | MARSn.CF2   | 4,377  | PCX main menu, palette 1 bright                         |
 | MARSn.IGS   | 16,600 / 16,700 | The tile and sprite set (see Graphics). `LoadIGS` freads 0x413C = 16,700 bytes into 2354:0766; MARS1's file is 100 bytes short |
-| MARSn.HS    |        | High scores: text lines of score + name, CR LF          |
-| MARSn.SV1/2 |        | Saved game (SV2 holds the score as text)                |
-| MARSn.KBD / .SPD |   | Probably keyboard and speed settings                    |
+| MARSn.HS    |        | High scores: 10 lines of `<score><name>` (decimal then the name, no separator), CR LF |
+| MARSn.SV1   | 2      | Saved game: the level (0-based) and its starting shots, as bytes |
+| MARSn.SV2   |        | The level's starting score as text, `%lu` CR LF         |
+| MARSn.KBD   | 1      | The key setup letter (see Input)                         |
+| MARSn.SPD   | 0      | Empty: only says the special notice has been shown      |
+
+High scores: `LoadHighScores` (1054:7526) reads ten times `fscanf("%lu")`, `fscanf("%[^\n]s")`.
+An empty name doesn't match, so that entry keeps its old name (empty at startup). Without a
+file it uses a built-in table (the same in all four volumes): Roger Wilco 110250, Commander
+Keen 84900, Todd Replogle 67350, Scott Miller 46500, Capt. Comic 27400, George Broussard 150,
+then four zeros. `CheckHighScore` inserts a score above the first lower entry; its shift writes
+an eleventh entry past both tables (harmless). Names are typed with `InputName`: up to 20 of
+A-Z, 0-9, space . ! ? (upper-cased); an extended key's scancode is typed as a letter (the
+arrows give H K M P).
+
+Saves keep the values from the **start** of the level, so restoring restarts that level.
+`RestoreGame` does nothing without SV1 (and would read a NULL file without SV2).
 
 ## Levels
 
@@ -136,12 +150,28 @@ turns GhidraMCP's linear branch targets back into named `seg:off` and shows stri
 1. Startup: `nosound`; remember the BIOS keyboard flags (0040:0017) and clear Caps Lock;
    `LoadIGS("mars1.igs")`; `SetHighFont(0006)`; `SetVideoMode(4)`.
 2. `TitleScreen`: `LoadHighScores`, CF1 with a Genus effect, "VOL. 1 - FIRST CONTACT", wait
-   for a key. If `MARS1.SPD` doesn't exist, show `ShowSpecialNotice` and create it (it stays
-   empty; only its existence matters).
+   for a key, clear the screen. If `MARS1.SPD` doesn't exist, create it (it stays empty; only
+   its existence matters) and show `ShowSpecialNotice` (drawn line by line, stopping early at
+   a key press; then it waits for a key without taking it).
 3. Save INT 9 and INT 1Ch; install the timer ISR (1054:7aba) on INT 1Ch and a `ctrlbrk`
    handler (1054:7953).
 4. **Menu loop** (1054:7b77): reset state, `SetVideoModePal1Bright(4)`, put back the BIOS
    INT 9, `MainMenu`, then install the game's keyboard ISR (1054:0499) on INT 9.
+
+   `MainMenu` (1054:6eb8) first calls `LoadKeyConfig`, then loops: palette 1 bright, CF2 with a
+   random Genus effect, flush the keyboard, `getch`:
+   J / Enter / Space play (5 shots); S `ShowStory`, I `ShowInstructions` (four pages, then the
+   special notice), O `ShowOrderingInfo`, C `ConfigKeyboard`, H `ShowHighScores` with the
+   player walking on both sides until a key; Caps Lock + `>` plays with 20 shots; Esc / Q:
+   `ShowOrderingInfo`, then text mode 3, the BIOS keyboard flags put back, a shareware notice
+   drawn with `DrawStringTextMode` (each line revealed over 10 passes of random colours), the
+   timer vector restored, `exit`. [C92B] is set to 5 / 10 on starting but never read.
+   If CF2 (or CF1, in TitleScreen) can't be loaded, it prints an "incomplete version" order
+   form in text mode and exits.
+
+   S and R in game draw an "ARE YOU SURE (Y/N)" box, then `printf("?")`: DOS's teletype output
+   puts the question mark at the BIOS cursor, right after "(Y/N) ". R answered N skips the rest
+   of that frame.
 5. **Level start** (1054:7c1a): `SetVideoMode(4)`, draw "LEVEL" / "SCORE" status line, copy
    the level map to 2354:8809, `DrawNumber(level+1)`, `DrawLevel`, `DrawShots`.
 6. **Frame loop** (1054:7c9a). The keyboard ISR leaves the last scancode in `[2354:C8AA]`:
@@ -353,11 +383,19 @@ so holding Enter on a lever or a 09/0A switch can flip it more than once.
 Some levels start the player above a shaft with spikes at the bottom (8 and 13 in MARS1): an
 idle player dies over and over; you have to steer right while falling.
 
+The text screens (story, instructions, ordering) are straight-line code: DrawText with
+constant strings, SetHighFont, ClearScreen, SetVideoMode, BlitTile_Screen, a call to
+ShowSpecialNotice, `getch`. Their text and layout differ per volume. The early helpers are at
+the same offsets in every volume's code segment (SetHighFont 0001, DrawText 0028, ClearScreen
+0471, SetVideoMode 0A36 / 0AA7); BlitTile_Screen moves (1B72, 1BCC in MARS4).
+
 ### Still open
 
 - Codes 14 / 15 (FindSpecialTileAt ignores them; they're common ground tiles).
 - What 81 / 82 are for (no MARS1 level uses them).
 - Whether the other volumes' rescue and ending texts have the same number of lines.
+- The Genus PCX Toolkit / Effects calls (1bea:000a picks a speed or effect, 1c09:0006 shows
+  the picture with an effect: 0 for the title, random 1-10 for the menu).
 
 ## Timing
 

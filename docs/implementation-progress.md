@@ -32,21 +32,28 @@ The user is learning, so explain findings as you go. They **prefer CGA palette 0
 ## Running
 
 ```
-build/mars.exe game/MARS1.EXE                 # title screen, then play from level 1
-build/mars.exe game/MARS1.EXE --level 5       # straight into level 5
+build/mars.exe game/MARS1.EXE                 # title screen, then the main menu
+build/mars.exe game/MARS1.EXE --level 5       # a game at level 5 first, then the menu
 build/mars.exe game/MARS1.EXE --level 5 --screenshot out.png   # its first frame, no window
 build/mars.exe game/MARS1.EXE --level 2 --script "30 10r 12 1rf 40"   # scripted test run
+build/mars.exe game/MARS1.EXE --show instructions --screenshot out.png  # out-1.png .. out-5.png
 ```
 
-The EXE may be the packed original or an unpacked one; MARSn.IGS / .CF1 must be next to it.
+The EXE may be the packed original or an unpacked one; MARSn.IGS / .CF1 / .CF2 must be next
+to it. Like the original, the port reads and writes MARSn.HS, .KBD, .SPD, .SV1 and .SV2 there
+(test with a copy of the game folder: `--show title` creates .SPD, scripted S writes saves).
 Keys: the setup in MARSn.KBD (default D: Alt / Ctrl or the arrows walk, Space jumps, left
-Shift fires), Enter uses switches / levers / terminals, Q or Esc then Y quits, F1 sound, F5 pause, F6 give
-up, Caps Lock + PgDn / ` skips levels (the game's cheat). F12 saves `shotNNN.png`.
+Shift fires), Enter uses switches / levers / terminals, Q or Esc then Y quits, S / R save
+and restore, F1 sound, F5 pause, F6 give up, Caps Lock + PgDn / ` skips levels and Caps Lock +
+`>` in the menu starts with 20 shots (the game's cheats). F12 saves `shotNNN.png`.
 
 `--script` (port extra, for testing) plays without a window and without waiting for the timer,
 holding the keys of each token for its frame count (`l r j f e` = left, right, jump, fire,
-Enter; "40" = 40 frames of nothing), then prints the level, position, shots, score and deaths.
-With `--screenshot` it writes the last frame.
+Enter; S / R = save / restore, answered Y; "40" = 40 frames of nothing), then prints the
+level, position, shots, score and deaths. With `--screenshot` it writes the last frame.
+`--show SCREEN` (title, menu, story, instructions, ordering, keys, hiscores, notice) runs one
+screen without a window, writing a numbered screenshot at every wait for a key and answering
+it with Esc.
 
 ## Completed
 
@@ -72,12 +79,22 @@ With `--screenshot` it writes the last frame.
   - `platform` is SDL2: window, PC/XT scancodes fed through a copy of the game's keyboard ISR,
     getch / kbhit, delay, the 18.2 Hz tick, Caps Lock, PC speaker tone.
   - `keyconfig` is LoadKeyConfig / ApplyKeyConfig / SaveKeyConfig and the ConfigKeyboard
-    screen (ready for the main menu's C; its text comes from the EXE).
-  - `main` shows the title screen (CF1 + "VOL. n - ..." from the EXE), loads the key setup
-    (as MainMenu would), then plays.
+    screen (its text comes from the EXE).
+  - `menu` is TitleScreen (incl. MARSn.SPD and the special notice) and MainMenu.
+  - `screens` runs the story, instructions and ordering screens **from the EXE** with a small
+    interpreter (like ptomb-port's screenvm), finding them through MainMenu's key tests; and
+    ShowSpecialNotice.
+  - `hiscore` is Load / Save / Show / CheckHighScore and InputName.
+  - `game` also has SaveGame / RestoreGame (S / R) and calls CheckHighScore at the end.
+  - `main` is main's flow: title, then the menu loop (menu, game, high score).
 - Checked with `--script`: walking over slopes, falling, the level 1 exit (-> level 2, +2000),
   dying and restarting, shooting a robot (+500), picking up +3 shots and a gem; all 20 MARS1
-  levels and levels of MARS2-4 run 150 frames without trouble; the windowed game runs.
+  levels and levels of MARS2-4 run 150 frames without trouble; save / restore round trip.
+- Checked with `--show`: every menu screen in all four volumes (incl. MARS4's moved
+  BlitTile_Screen and its built-in high-score table). With throwaway harnesses: high-score
+  entry (typing, Backspace, '?', the file written back with CR LF), the key config screen.
+  With real key presses sent to the window: title, high scores, a game quit with Q / Y, the
+  menu's Q, ordering info, exit.
 
 ## Architectural decisions and why
 
@@ -107,18 +124,19 @@ With `--screenshot` it writes the last frame.
   colour back to back), so they hardly show; after level 20 the port ends the game straight
   away, where the original first draws "LEVEL 21" over a level built from the bytes after the
   level table; window close quits from any wait.
-- The main menu, high scores and save / restore (S / R in game) aren't ported: the port goes
-  straight from the title into the game and exits when it's over. So the ConfigKeyboard screen
-  isn't reachable yet; it was checked with a throwaway harness (layout in volumes 1 and 4,
-  choosing G applies and saves it).
+- Not ported: the Genus PCX transitions (pictures appear at once), the text-mode shareware
+  notice on quitting and the text-mode "incomplete version" order form (the port shows an
+  error box instead).
+- In-game keys are read at the start of each frame from the ISR's last scancode, so a tap
+  shorter than a frame (55 ms) can be missed, as in the original.
 - Play-tested by the user against the original: the frame loop matches.
 - The rescue and ending texts are read from the EXE by their first line and the lines after
   it; only MARS1's layout has been checked.
 
 ## Next steps (suggested order)
 
-1. Main menu (CF2, palette 1 bright, the 20-shot cheat), instructions / story / ordering
-   screens, high scores (LoadHighScores, CheckHighScore, InputName), save / restore (S / R
-   in game, MARS1.SV1 / .SV2), MARS1.SPD and the special notice.
-2. The Genus PCX transitions on the title screen.
+1. The Genus PCX Effects transitions for the title and the menu (decode 1bea:000a and
+   1c09:0006; the menu picks one at random).
+2. The text-mode screens: an 80x25 text mode for the quit notice (DrawStringTextMode's random
+   reveal) and the order form shown when CF1 / CF2 are missing.
 3. Close the open questions in `docs/notes.md` (codes 14 / 15, 81 / 82).

@@ -13,6 +13,7 @@
 
 #include "cga.h"
 #include "gfx.h"
+#include "hiscore.h"
 #include "level.h"
 #include "platform.h"
 #include "text.h"
@@ -79,6 +80,7 @@ static int next_letter;            /* CCC8: 0, then 'm', 'a', 'r', 's' */
 static int rings_done;             /* 05A6 */
 
 static unsigned long rand_seed = 1; /* Turbo C's rand(); the game never seeds it */
+static int scripted;               /* --script: Y/N questions answer yes */
 
 #define K (isr_keys)
 #define SC (isr_keys.scancode) /* [C8AA] */
@@ -1208,7 +1210,75 @@ static void banner(int color, int row, const char *const *lines, int n)
         draw_text(color, lines[i], row + i, 0x0E);
 }
 
-/* The keys main handles at the top of each frame. Returns 1 to quit the game. */
+/* SaveGame (1054:7960): MARSn.SV1 holds the level and the shots it started with, as bytes;
+ * MARSn.SV2 the score it started with, as text ("%lu\n", text mode). */
+static void save_game(void)
+{
+    char path[1100];
+    gamedata_path(gd, "SV1", path, sizeof path);
+    FILE *f = fopen(path, "wb");
+    if (!f)
+        return;
+    fputc(level, f);
+    fputc(shots_at_start, f);
+    fclose(f);
+    gamedata_path(gd, "SV2", path, sizeof path);
+    f = fopen(path, "wb");
+    if (!f)
+        return;
+    fprintf(f, "%lu\r\n", score_at_start);
+    fclose(f);
+}
+
+/* RestoreGame (1054:79fa): nothing happens without a saved game. */
+static void restore_game(void)
+{
+    char path[1100];
+    gamedata_path(gd, "SV1", path, sizeof path);
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return;
+    level = fgetc(f) & 0xFF; /* bytes: a short file gives FFh */
+    shots_at_start = fgetc(f) & 0xFF;
+    fclose(f);
+    gamedata_path(gd, "SV2", path, sizeof path);
+    f = fopen(path, "rb");
+    if (f) { /* the original would fscanf a NULL FILE here */
+        unsigned long v;
+        if (fscanf(f, "%lu", &v) == 1)
+            score_at_start = v & 0xFFFFFFFFUL;
+        fclose(f);
+    }
+    score = score_at_start;
+    shots = shots_at_start;
+    draw_text(0, "        ", 0, 0x20);
+}
+
+/* "ARE YOU SURE (Y/N)" boxes for S and R. Then printf("?") puts a question mark at the BIOS
+ * cursor, just after "(Y/N) ", with DOS's teletype output (ROM font, colour 3). */
+static int ask_yes_no(const char *what)
+{
+    static const char *const box[] = {"**************", "*            *", "*            *",
+                                      "*            *", "**************"};
+    for (int i = 0; i < 5; i++)
+        draw_text(1, box[i], 11 + i, 0x0D);
+    draw_text(2, what, 12, 0x0E);
+    draw_text(2, "ARE YOU SURE", 13, 0x0E);
+    draw_text(2, "   (Y/N) ", 14, 0x0E);
+    draw_text(3, "?", 14, 0x17);
+    if (scripted)
+        return 1;
+    for (;;) {
+        if (SC == 0x15)
+            return 1;
+        if (SC == 0x31 || plat_quitting())
+            return 0;
+        delay(1);
+    }
+}
+
+/* The keys main handles at the top of each frame. Returns 1 to quit the game, 2 to skip the
+ * rest of the frame. */
 static int frame_keys(void)
 {
     if (SC == 0x10 || SC == 0x01) { /* Q / Esc */
@@ -1226,7 +1296,17 @@ static int frame_keys(void)
             delay(1);
         }
     }
-    /* TODO S (1Fh) SaveGame and R (13h) RestoreGame, with their banners. */
+    if (SC == 0x1F && ask_yes_no("  SAVING..  ")) /* S */
+        save_game();
+    if (SC == 0x13) { /* R: either way, the rest of the frame is skipped */
+        if (ask_yes_no(" RESTORING.")) {
+            memcpy(map(), backup, LEVEL_BYTES);
+            restore_game();
+            level_changed = 1;
+            draw_score(0);
+        }
+        return 2;
+    }
     if (SC == 0x40) { /* F6: give up */
         death_x = px;
         death_y = py;
@@ -1311,6 +1391,8 @@ static const char *script_step(const char *p, int *frames)
         if (*p == 'j') { K.jump = true; SC = K.key_jump; }
         if (*p == 'f') { K.fire = true; SC = K.key_fire; }
         if (*p == 'e') SC = ENTER;
+        if (*p == 'S') SC = 0x1F; /* save, answering Y */
+        if (*p == 'R') SC = 0x13; /* restore, answering Y */
     }
     return p;
 }
@@ -1321,6 +1403,7 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
 {
     init(g, first_level, start_shots);
     plat_isr_installed = !script;
+    scripted = script != NULL;
     unsigned last = plat_ticks();
     int frames = 0, total = 0, deaths = 0;
     const char *p = script;
@@ -1337,8 +1420,14 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
                 frames--;
                 total++;
             }
-            if (frame_keys())
+            const int k = frame_keys();
+            if (k == 1)
                 goto quit;
+            if (k == 2) {
+                if (level_changed)
+                    break;
+                continue;
+            }
             if (frame_update())
                 goto quit;
             if (!script) { /* wait for the timer ISR's tick ([CCD1]) */
@@ -1359,13 +1448,15 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
     }
 quit:
     if (script)
-        printf("frames %d: level %d, x %d, y %d, shots %d, score %lu, deaths %d%s\n", total, level + 1, px,
-               py, shots, score, deaths, game_over ? ", game over" : "");
-    /* back to the menu loop: put the level back, then CheckHighScore (not ported yet) */
+        printf("frames %d: level %d, x %d, y %d, shots %d, score %lu, deaths %d%s\n", total,
+               level + 1, px, py, shots, score, deaths, game_over ? ", game over" : "");
+    /* back to the menu loop: put the level back, then CheckHighScore */
     if (level < LEVELS)
         memcpy(map(), backup, LEVEL_BYTES);
     nosound();
     plat_isr_installed = false;
+    if (!script && !plat_quitting())
+        hiscore_check(g, score);
 }
 
 void game_play(gamedata_t *g, int first_level, int start_shots)

@@ -19,6 +19,9 @@ add_executable(mars
     src/level.c
     src/game.c
     src/keyconfig.c
+    src/screens.c
+    src/hiscore.c
+    src/menu.c
 )
 
 if(TARGET SDL2::SDL2main)

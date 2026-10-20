@@ -61,3 +61,19 @@ void draw_number(int color, int width, long value, int row, int col)
     snprintf(buf, sizeof buf, "%ld", value);
     draw_text(color, buf, row, col + width - ((int)strlen(buf) + 1));
 }
+
+void draw_char(int color, int ch, int row, int col)
+{
+    int c;
+    if (ch == ' ')
+        c = 0x20;
+    else if (ch == '0')
+        c = 0xB3;
+    else if (ch >= '1' && ch <= '9')
+        c = ch + 0x79;
+    else if (strchr("*.-'/,)($:!\"_", ch))
+        c = ch;
+    else
+        c = (ch + 0x41) & 0xFF;
+    put_char(c, color, row, col);
+}

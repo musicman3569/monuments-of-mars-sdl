@@ -119,11 +119,15 @@ static void on_key(const SDL_KeyboardEvent *e)
         return;
     const SDL_Keycode sym = e->keysym.sym;
     if (sym >= 32 && sym < 127) {
+        /* the BIOS's US layout: Shift and Caps Lock cancel out on letters */
+        static const char plain[] = "`1234567890-=[]\\;',./", shifted[] = "~!@#$%^&*()_+{}|:\"<>?";
         int c = (int)sym;
-        if ((e->keysym.mod & KMOD_SHIFT) != 0 && c >= 'a' && c <= 'z')
+        const int shift = (e->keysym.mod & KMOD_SHIFT) != 0, caps = (e->keysym.mod & KMOD_CAPS) != 0;
+        const char *k = strchr(plain, c);
+        if (c >= 'a' && c <= 'z' && shift != caps)
             c -= 32;
-        else if ((e->keysym.mod & KMOD_CAPS) != 0 && c >= 'a' && c <= 'z')
-            c -= 32;
+        else if (shift && k)
+            c = shifted[k - plain];
         push_key(c);
     } else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER) {
         push_key('\r');
@@ -242,14 +246,46 @@ bool plat_quitting(void)
     return quitting;
 }
 
+/* Without a window (--show), each wait for a key writes the next screenshot instead. */
+static const char *capture_base;
+static int capture_no;
+
+void plat_capture_waits(const char *base)
+{
+    capture_base = base;
+}
+
+static void capture(void)
+{
+    char path[1100];
+    snprintf(path, sizeof path, "%s-%d.png", capture_base ? capture_base : "wait", ++capture_no);
+    if (plat_screenshot(path) == 0)
+        printf("wrote %s\n", path);
+}
+
 bool plat_kbhit(void)
 {
+    if (!win)
+        return false;
     plat_poll();
     return key_head != key_tail || quitting;
 }
 
+bool plat_key_pressed(void)
+{
+    if (!win) {
+        capture();
+        return true;
+    }
+    return plat_kbhit();
+}
+
 int plat_getch(void)
 {
+    if (!win) {
+        capture();
+        return 27;
+    }
     while (key_head == key_tail) {
         if (quitting)
             return 27;

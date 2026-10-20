@@ -15,6 +15,10 @@ void text_set_high_font(const gamedata_t *g, unsigned ds_off);
  * are the ink, bit 7 XORs; background pixels are written as colour 0. row / col are 8x8 cells. */
 void draw_text(int color, const char *s, int row, int col);
 
+/* DrawChar (1054:01d6), what InputName types with: one character, mapped like DrawText except
+ * that '_' is kept and '=' and '?' are not (they come out as characters 7Eh and 80h). */
+void draw_char(int color, int ch, int row, int col);
+
 /* DrawNumber (1054:0316): the number right-aligned so it starts at col + width - (len + 1). */
 void draw_number(int color, int width, long value, int row, int col);
 
