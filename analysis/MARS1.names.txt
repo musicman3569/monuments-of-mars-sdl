@@ -33,13 +33,13 @@
 1054:3ce3 PresentFrame              # back buffer 2 -> B800 + 0x140, both banks
 1054:3d43 UpdatePlayer              # player at [05DC],[05DE]; input, sounds, collision blit
 1054:43d2 CheckLevelExit            # level++; after level 20 sets [05D5] and shows CONGRATULATIONS!
-1054:4fe1 UpdateEnemies49           # entity code 49 list (count CCD3); touching kills the player
-1054:51db UpdateEnemies4A           # entity code 4A list (count CCD4)
-1054:53e7 UpdateEnemies4B           # entity code 4B list (count CCD5)
-1054:55d9 UpdatePatrollers          # 18..19 range list (count CCCD), random movement
-1054:56c9 UpdateEntity46            # the single code-46 entity at [CCDA],[CCDB]; can kill the player
-1054:5978 UpdateObjects6E_guess     # code 6E list (count CCCF) and entity 46's row
-1054:5ba4 DrawObjects6E_guess       # code 6E list, masked blit
+1054:4fe1 UpdateEnemies49           # walker, tiles 49-4C; turns at walls; shot = +500; touch kills
+1054:51db UpdateEnemies4A           # walker, tiles 4D-50 (robot)
+1054:53e7 UpdateEnemies4B           # walker, tiles 51-54
+1054:55d9 UpdateDrips               # 18..19 ceiling ranges: drop tile 26 from a random column until it hits something
+1054:56c9 UpdateTurret              # code 46 at [CCDA],[CCDB]: fires a bolt (tile 2A) at the player when |dy|<7
+1054:5978 UpdateBoulders_guess      # code 6E list (count CCCF): falls, pushed by the player, stops shots
+1054:5ba4 DrawBoulders_guess        # code 6E list, masked blit
 1054:5bf2 RestartLevel              # after death / F6: shots = shots at level start, redraw status
 1054:5d20 CheatLevelSkip            # Caps Lock on: PgDn (51h) next level, ` (29h) previous level
 1054:5dc3 ShowSpecialNotice         # first run only (no MARS1.SPD): "*** SPECIAL NOTICE ***"
@@ -58,6 +58,17 @@
 1054:77be CheckHighScore            # game over: insert score, InputName, SaveHighScores
 1054:7960 SaveGame                  # S key: MARS1.SV1 (level, shots), MARS1.SV2 ("%lu" score)
 1054:79fa RestoreGame               # R key
+
+# Player, objects and tile effects
+1054:0fce FindSpecialTileAt         # (y, x): active entry of the C9A8 list within |dx|<3,|dy|<8 -> its code; handles 0D and switches 0F-12
+1054:2b08 TouchTile                 # (code): deadly tiles, gem, M/A/R/S letters, levers 16/17, terminal 70
+1054:2a5b EnemyExplosion            # sound + explosion tiles 2A-2E
+1054:38a9 UpdateVPlatforms          # code 04 list: up/down every other frame, reverse when blocked
+1054:398e UpdateHPlatforms          # code 06 list: sideways every 3rd frame, carries the player
+1054:45d3 UpdatePlayerShot          # fire: spawn a shot (tile 0B) if none active and shots > 0; move it 2 bytes/frame
+1054:4126 TeleportTo5C              # standing on 5B: move the player to the 5C cell
+1054:427c TeleportTo5E              # standing on 5D: move the player to the 5E cell
+1054:0b18 ShowRescueMessage         # standing on 81/82: "YOU HAVE DEACTIVATED THE ENERGY RINGS..."
 
 # --- Turbo C runtime (huge model; each module loads its own DS) ---
 1d4f:0014 exit

@@ -150,10 +150,10 @@ turns GhidraMCP's linear branch targets back into named `seg:off` and shows stri
    | 3F       | F5     | pause until F5 again                                    |
    | 40       | F6     | give up: back to the level start (as if killed)         |
 
-   Then, every frame: `CopyBackground`, `AnimateTiles`, `DrawObjects6E`, `UpdateEnemies49`,
-   `UpdateEnemies4A`, `UpdateEnemies4B`, `UpdatePatrollers`, `UpdatePlayer`. If the game is
+   Then, every frame: `CopyBackground`, `AnimateTiles`, `DrawBoulders`, `UpdateEnemies49`,
+   `UpdateEnemies4A`, `UpdateEnemies4B`, `UpdateDrips`, `UpdatePlayer`. If the game is
    over ([05D5]) -> `CheckHighScore` -> back to the menu loop. Otherwise
-   `UpdateObjects6E`, `UpdateEntity46`, `PresentFrame`, `CheckLevelExit`, **wait for the
+   `UpdateBoulders`, `UpdateTurret`, `PresentFrame`, `CheckLevelExit`, **wait for the
    timer ISR to set [CCD1]** (the frame clock), handle death ([05D6] -> `FlashBackground`,
    `RestartLevel`), `CheatLevelSkip`. A level change ([CCE9]) jumps back to step 5.
 
@@ -181,3 +181,89 @@ when the level started.
 
 - Main menu, **Caps Lock on + `>`**: start with 20 shots.
 - In game, **Caps Lock on + PgDn / `**: next / previous level (`CheatLevelSkip`).
+
+## Input
+
+The keyboard ISR at **1054:0499** isn't a Ghidra function (auto-analysis missed it and
+GhidraMCP can't create one); this is decoded from its bytes:
+
+```
+in al,60h ; [C8AA] = scancode
+scancode == [C8AE]        -> [C8AD] = 1 (jump)    scancode|80h -> 0
+scancode == [8A25]        -> [C92C] = 1 (fire)    release -> 0
+scancode == [C8EC] or 4Bh -> [CCCE] = 1 (left)    release -> 0   (4Bh = Left arrow)
+scancode == [C92D] or 4Dh -> [CCD2] = 1 (right)   release -> 0   (4Dh = Right arrow)
+in al,61h / toggle bit 7 (keyboard ack) / EOI / iret
+```
+
+The four configurable keys come from `ConfigKeyboard` / `MARS1.KBD`. Switches, levers and
+terminals use **Enter** (scancode 1C) while standing on them.
+
+## Player (UpdatePlayer, 1054:3d43)
+
+Units: x is a byte column (4 px, 0..4C), y is a scanline pair (2 px, 0..54).
+
+- **Walking**: on 2 of every 3 frames, left/right moves x by 1 (4 px), if the
+  wall-ahead flag allows it. The first press in a new direction only turns. Frames: facing
+  right 1A-1F, facing left 20-25 (the 6th is the jump pose). Footstep beeps on the ground.
+- **Jump**: needs jump held, on the ground and not falling. Rise speed is `(9 - t) >> 1`
+  rows per frame, where t counts up every 3 frames. Apex at t = 32. Hitting a ceiling
+  starts the fall.
+- **Gravity**: with nothing under the feet, y += v >> 1 with v counting up to 8 (max 4 rows,
+  8 px, per frame).
+- **Collision** samples back buffer 2 (the frame so far, enemies included) before drawing the
+  player; `BlitMasked_Buf2_Collide` stores 8 flags (non-zero byte = solid):
+
+  | Flag      | Byte offset from the sprite's top-left | Use                        |
+  |-----------|----------------------------------------|----------------------------|
+  | 492A/492B | row +5, col +0 / +3                    | wall left / right          |
+  | 492C/492D | row +8, col +1 / +2                    | ground below the feet      |
+  | 492E/492F | row +7, col +1 / +2                    | feet in the floor: step up |
+  | 4930/4931 | row -1, col +1 / +2                    | ceiling                    |
+
+  A blocking pixel only stops walking if `FindSpecialTileAt` finds no special tile there.
+- **Shooting** (`UpdatePlayerShot`): fire spawns a shot (tile 0B) at the player's x (+2 if
+  facing right) when none is in flight and shots > 0. It moves 2 bytes per frame. One shot
+  costs one; there's no other way to get more except the menu cheat.
+- **Death** ([05D6]) comes from enemies, drips, the turret bolt and deadly tiles; F6 does the
+  same. `RestartLevel` puts back the shots and score from the level's start.
+
+## Map codes
+
+| Code       | Tile(s)  | What                                                                      |
+|------------|----------|---------------------------------------------------------------------------|
+| 04         | 04       | vertical moving platform (`UpdateVPlatforms`); lever 16/17 stops and starts them |
+| 06         | 06       | horizontal moving platform, carries the player (`UpdateHPlatforms`)      |
+| 0B         | -        | (the player's shot)                                                       |
+| 0D         | 0D       | needs [05DA] (probably a key); then removed with a message               |
+| 0F-12      | 0F-12    | switches (Enter): flip each other and toggle the 37 force fields          |
+| 16 / 17    | 16 / 17  | lever (Enter): stop / restart the vertical platforms                     |
+| 18 .. 19   | -        | left / right end of a dripping ceiling (`UpdateDrips`, drip = tile 26)   |
+| 34, 37     | 34-39    | force fields (animated), **deadly**                                       |
+| 3A         | 3A-3C    | gem: +1000                                                                |
+| 3D         | 3D-3F    | spikes, **deadly**                                                        |
+| 40         | 40-42    | hanging electric barrier, **deadly**                                      |
+| 43         | 43-45    | energy rings, **deadly**                                                  |
+| 46         | 46       | turret: shoots a bolt (tile 2A) at the player, **deadly** to touch       |
+| 49         | 49-4C    | walker enemy; shot = +500                                                  |
+| 4A         | 4D-50    | walker enemy (robot)                                                       |
+| 4B         | 51-54    | walker enemy                                                               |
+| 55         | 55       | entity list at C8EF (not yet looked at)                                    |
+| 56-59      | 56-59    | the letters **M A R S** (flags 4946, 48B1, 8805, 8808)                     |
+| 5B -> 5C   | -        | teleporter (`TeleportTo5C`)                                               |
+| 5D -> 5E   | - / 01   | teleporter (`TeleportTo5E`); 5E is drawn as tile 01                        |
+| 64         | -        | level exit (invisible)                                                     |
+| 65         | -        | player start                                                               |
+| 6E         | 6E       | probably a pushable boulder (`UpdateBoulders`): falls, pushed, stops shots  |
+| 6F         | 6F       | position kept at [C8AB]/[C8AC] (not yet looked at)                        |
+| 70         | 70       | computer terminal (Enter): per-level action from a table at 2226:000C       |
+| 74-77      | 74-77    | stars (background, twinkle)                                                |
+| 81 / 82    | -        | end of volume: "YOU HAVE DEACTIVATED THE ENERGY RINGS..." (`ShowRescueMessage`) |
+
+Everything else is plain scenery: drawn, and solid if it has pixels where the player samples.
+
+### Still open
+
+- The terminal (70) action table and what code 0D needs.
+- Codes 55 and 6F, and what collecting all of M-A-R-S does (`0825`, `58ab`).
+- The rest of `UpdatePlayerShot` (2.5 KB) and `UpdateBoulders`: how shots stop.
