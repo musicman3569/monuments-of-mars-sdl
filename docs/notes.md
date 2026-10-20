@@ -389,13 +389,43 @@ ShowSpecialNotice, `getch`. Their text and layout differ per volume. The early h
 the same offsets in every volume's code segment (SetHighFont 0001, DrawText 0028, ClearScreen
 0471, SetVideoMode 0A36 / 0AA7); BlitTile_Screen moves (1B72, 1BCC in MARS4).
 
+### Genus PCX Effects (the title and menu transitions)
+
+The library has three settings: the effect type (`SetType`, 0-9), a granularity (1-64, default
+8) and a delay between steps (0-500, default 0). `ShowPcx(variant, x, y, image)` (1c09:0006)
+sets up locals in its own stack frame (the picture's size and edges, half sizes, the row
+granularity, the column granularity rounded down to whole bytes, the delay, the video page),
+then jumps to the type's routine, which uses that frame. Every step copies a rectangle of the
+picture with `PutImageRect`, then calls `Delay(delay)`. The delay unit is `CalibrateDelay`'s
+loop count for 1/100 of 18 ticks (about 9.9 ms); before calibrating it's a fixed 500 loops.
+
+- **TitleScreen**: granularity 16, calibrate, type 9, variant 0, delay 0 (so only drawing time
+  paces it).
+- **MainMenu**: granularity 8, delay 1; each time `rand() % 5` picks a type: 6, 1, 3, 7 or 0;
+  then `rand() % 4` (`% 2` for type 1) the variant: type 6 / 3 / 0: 4, 8, 1, 2; type 1: 1, 2;
+  type 7: 6, 10, 5, 9. That's Turbo C's `rand()`, the same sequence as the drips.
+
+| Type | Routine | What it does                                                               |
+|------|---------|-----------------------------------------------------------------------------|
+| 0    | 1c34:000a | strips one after another: 8 top down, 4 bottom up, 2 left to right, 1 right to left |
+| 1    | 1c66:0002 | from the middle outwards: 2 sideways, otherwise up and down              |
+| 3    | 1c4d:000e | the picture slides in: 8 from the top, 4 from the bottom, 2 from the left, 1 from the right |
+| 6    | 1ca5:000e | column and row strips together: a cross growing from the middle; 2 closes in from the edges |
+| 7    | 1cd0:0080 | square cells, one diagonal per step from a corner: 10 top left, 5 bottom right, 6 bottom left, 9 top right |
+| 9    | 1d05:0000 | square cells in random order (the library's own RNG, seeded from the clock); the cell size doubles until there are fewer than 2048 cells |
+
+`PutImageRect` for CGA (1a0d:036e) works in whole bytes: the source and destination columns are
+`x / 4` and the width `(x2 - x1 + 1) / 4`, rounded down, with no clipping. That's why a strip
+asked for as g + 1 pixels wide is g wide, and why type 3 variant 1's last step, which asks for
+x1 = 1, still lands on column 0. The library could abort on Esc (if [0F44] is set), but the
+game never turns that on.
+
 ### Still open
 
 - Codes 14 / 15 (FindSpecialTileAt ignores them; they're common ground tiles).
 - What 81 / 82 are for (no MARS1 level uses them).
 - Whether the other volumes' rescue and ending texts have the same number of lines.
-- The Genus PCX Toolkit / Effects calls (1bea:000a picks a speed or effect, 1c09:0006 shows
-  the picture with an effect: 0 for the title, random 1-10 for the menu).
+- Effect types 2, 4, 5 and 8 of the Genus library (the game doesn't use them).
 
 ## Timing
 

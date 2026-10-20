@@ -1,8 +1,8 @@
 /* The title and menu pictures (MARSn.CF1 / .CF2, PCX files).
  *
  * The game loads them with the Genus PCX Toolkit (1d2a:000e), shows them with a Genus PCX
- * Effects transition (1c09:0006, effect picked by 1bea:000a) and frees them (1d2a:01e8).
- * The transitions aren't ported yet; pcx_show draws the picture at once. */
+ * Effects transition (1c09:0006, see effects.h) and frees them (1d2a:01e8). pcx_show draws
+ * the picture at once. */
 #ifndef MARS_PCX_H
 #define MARS_PCX_H
 

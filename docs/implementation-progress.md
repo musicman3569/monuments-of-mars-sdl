@@ -81,6 +81,8 @@ it with Esc.
   - `keyconfig` is LoadKeyConfig / ApplyKeyConfig / SaveKeyConfig and the ConfigKeyboard
     screen (its text comes from the EXE).
   - `menu` is TitleScreen (incl. MARSn.SPD and the special notice) and MainMenu.
+  - `effects` is the Genus PCX Effects transitions the game uses (types 0, 1, 3, 6, 7, 9 and
+    all their variants), decoded from the library, with its byte-wise CGA blit.
   - `screens` runs the story, instructions and ordering screens **from the EXE** with a small
     interpreter (like ptomb-port's screenvm), finding them through MainMenu's key tests; and
     ShowSpecialNotice.
@@ -90,6 +92,8 @@ it with Esc.
 - Checked with `--script`: walking over slopes, falling, the level 1 exit (-> level 2, +2000),
   dying and restarting, shooting a robot (+500), picking up +3 shots and a gem; all 20 MARS1
   levels and levels of MARS2-4 run 150 frames without trouble; save / restore round trip.
+- Checked with a throwaway harness: every transition type and variant the game uses ends on
+  exactly the picture (CF1 and CF2); mid-transition frames match the decoded patterns.
 - Checked with `--show`: every menu screen in all four volumes (incl. MARS4's moved
   BlitTile_Screen and its built-in high-score table). With throwaway harnesses: high-score
   entry (typing, Backspace, '?', the file written back with CR LF), the key config screen.
@@ -124,9 +128,13 @@ it with Esc.
   colour back to back), so they hardly show; after level 20 the port ends the game straight
   away, where the original first draws "LEVEL 21" over a level built from the bytes after the
   level table; window close quits from any wait.
-- Not ported: the Genus PCX transitions (pictures appear at once), the text-mode shareware
-  notice on quitting and the text-mode "incomplete version" order form (the port shows an
-  error box instead).
+- Left out on purpose (the user has the full version): the text-mode shareware notice on
+  quitting and the text-mode "incomplete version" order form shown when CF1 / CF2 are missing
+  (the port shows an error box instead).
+- The transitions' speed is an estimate. The menu's delay of 1 unit per step (about 9.9 ms) is
+  from the code, but the original also took as long as its drawing did, and with delay 0 (the
+  title) that's all there is. The port charges 0.4 ms per blit plus 1 ms per 16,000 pixels
+  (`step` in effects.c); compare with DOSBox and adjust if needed.
 - In-game keys are read at the start of each frame from the ISR's last scancode, so a tap
   shorter than a frame (55 ms) can be missed, as in the original.
 - Play-tested by the user against the original: the frame loop matches.
@@ -135,8 +143,5 @@ it with Esc.
 
 ## Next steps (suggested order)
 
-1. The Genus PCX Effects transitions for the title and the menu (decode 1bea:000a and
-   1c09:0006; the menu picks one at random).
-2. The text-mode screens: an 80x25 text mode for the quit notice (DrawStringTextMode's random
-   reveal) and the order form shown when CF1 / CF2 are missing.
-3. Close the open questions in `docs/notes.md` (codes 14 / 15, 81 / 82).
+1. Compare the transitions' speed with DOSBox and tune `step` in effects.c.
+2. Close the open questions in `docs/notes.md` (codes 14 / 15, 81 / 82).

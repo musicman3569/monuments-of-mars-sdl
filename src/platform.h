@@ -43,6 +43,10 @@ bool plat_key_pressed(void);
  * writes <base>-N.png, then acts as if Esc was pressed. */
 void plat_capture_waits(const char *base);
 
+/* Turbo C rand(): never seeded, so it starts from 1. The menu's choice of transition and the
+ * drips share it. */
+int plat_rand(void);
+
 /* Turbo C delay(ms). */
 void plat_delay(int ms);
 

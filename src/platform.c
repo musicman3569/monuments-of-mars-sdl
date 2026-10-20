@@ -311,6 +311,13 @@ void plat_delay(int ms)
     } while (1);
 }
 
+int plat_rand(void)
+{
+    static unsigned long seed = 1;
+    seed = (seed * 0x015A4E35UL + 1) & 0xFFFFFFFFUL;
+    return (int)((seed >> 16) & 0x7FFF);
+}
+
 bool plat_caps_lock(void)
 {
     return (SDL_GetModState() & KMOD_CAPS) != 0;

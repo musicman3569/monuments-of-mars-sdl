@@ -22,6 +22,7 @@ add_executable(mars
     src/screens.c
     src/hiscore.c
     src/menu.c
+    src/effects.c
 )
 
 if(TARGET SDL2::SDL2main)

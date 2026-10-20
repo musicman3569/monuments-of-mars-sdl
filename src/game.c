@@ -79,7 +79,6 @@ static int got_m, got_a, got_r, got_s; /* 4946, 48B1, 8805, 8808 */
 static int next_letter;            /* CCC8: 0, then 'm', 'a', 'r', 's' */
 static int rings_done;             /* 05A6 */
 
-static unsigned long rand_seed = 1; /* Turbo C's rand(); the game never seeds it */
 static int scripted;               /* --script: Y/N questions answer yes */
 
 #define K (isr_keys)
@@ -87,12 +86,6 @@ static int scripted;               /* --script: Y/N questions answer yes */
 #define ENTER 0x1C
 
 /* ------------------------------------------------------------------ helpers ---- */
-
-static int tc_rand(void)
-{
-    rand_seed = (rand_seed * 0x015A4E35UL + 1) & 0xFFFFFFFFUL;
-    return (int)((rand_seed >> 16) & 0x7FFF);
-}
 
 static void delay(int ms)
 {
@@ -757,8 +750,8 @@ static void update_drips(void)
     if (lv.drips.n == 0)
         return;
     if (!drip_active) {
-        const int which = tc_rand() % lv.drips.n;
-        const int off = tc_rand() % (lv.drips.r[which].s + 1);
+        const int which = plat_rand() % lv.drips.n;
+        const int off = plat_rand() % (lv.drips.r[which].s + 1);
         drip_col = lv.drips.r[which].col + off;
         drip_row = lv.drips.r[which].row;
         drip_active = 1;

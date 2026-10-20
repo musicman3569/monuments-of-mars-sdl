@@ -131,3 +131,23 @@
 1054:01d6 DrawChar                  # (color, ch, row, col): one character via BIOS, DrawText's mapping but with '_' and without = ?
 1054:036b ClearTextScreen           # 80x25 text mode: spaces, attribute 07
 1054:03a2 PutTextCell               # (x, y, ch, attr) -> B800
+
+# --- Genus PCX Toolkit 3.56 / PCX Effects 1.04 (DS 211d) ---
+1a0d:0008 GenusPcx_PutImageRect     # (page, y2, x2, y1, x1, srcY, srcX, image far *): per-adapter; CGA 1a0d:036e copies whole bytes, no clipping
+1ac9:000e GenusPcx_SetDisplay_guess # (0..21) -> [0112]
+1d2a:000e GenusPcx_LoadPcx          # (name, &handle, 1): file into a buffer (EMS if there is some)
+1d2a:01e8 GenusPcx_FreePcx
+1bea:000a GenusFx_SetType           # (0..9) -> [0F4A]; 9 also srand(INT 1Ah ticks)
+1bea:0051 GenusFx_GetType
+1bea:0080 GenusFx_SetGranularity    # (1..64) -> [0F4C], default 8
+1bea:00b8 GenusFx_GetGranularity
+1bea:00d8 GenusFx_SetDelay          # (0..500) -> [0F4E], default 0
+1bea:0110 GenusFx_GetDelay
+1bea:016b GenusFx_TypeEntry         # (type): its table entry; +16h = far pointer to the effect routine
+1c09:0006 GenusFx_ShowPcx           # (variant, x, y, image far *): sets up a frame of locals, then jumps to the type's routine
+1c09:01c4 GenusFx_InitTable         # 0 1c34:000a wipe, 1 1c66:0002 split, 2 1c7b:0004, 3 1c4d:000e slide, 4 1c90:0002, 5 1c9b:0000, 6 1ca5:000e cross, 7 1cd0:0080 diagonal, 8 1cef:0000, 9 1d05:0000 random cells
+1d10:000a GenusFx_Spin              # (n): an empty loop of n
+1d10:003b GenusFx_CalibrateDelay    # [0F42] = loops of 500 in 18 ticks * 5: Spin count for 1/100 of 18 ticks (~9.9 ms)
+1d10:0092 GenusFx_Delay             # (n): n x [0F42]; if [0F44], Esc sets carry (abort)
+1d22:0002 GenusFx_SRand
+1d22:002f GenusFx_Random            # (n): 0..n, its own 32-bit LCG
