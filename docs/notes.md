@@ -267,3 +267,23 @@ Everything else is plain scenery: drawn, and solid if it has pixels where the pl
 - The terminal (70) action table and what code 0D needs.
 - Codes 55 and 6F, and what collecting all of M-A-R-S does (`0825`, `58ab`).
 - The rest of `UpdatePlayerShot` (2.5 KB) and `UpdateBoulders`: how shots stop.
+
+## Timing
+
+The timer ISR at 1054:7aba (on INT 1Ch) is just `inc byte [CCD1]`, then it chains to the old
+handler. The frame loop waits until [CCD1] >= 1 and clears it, so the game runs at **one frame
+per BIOS tick, 18.2 Hz**, unless a frame takes longer than a tick.
+
+## Text (DrawText, 1054:0028)
+
+`DrawText(color, char far *s, row, col)` (Pascal-style, callee pops 10 bytes) sets the cursor
+with INT 10h AH=02h and writes each character with AH=09h, BL=color, CX=1, after remapping:
+`A`-`Z` -> 82h-9Bh (c + 41h), `1`-`9` -> AAh-B2h (c + 79h), `0` -> B3h, and space plus
+`* . - ' / , ) ( $ : ! " = ?` unchanged. So letters and digits come from the game's own font
+(INT 1Fh -> DS:0006; `SetHighFont(01A6)` selects a second set 34h characters later), and
+punctuation from the BIOS ROM font. `DrawNumber(color, width, long n, row, col)` (1054:0316)
+right-aligns: it starts at `col + width - (len + 1)`.
+
+Status line: `LEVEL` at (0, 0) with the number at col 7, `SHOTS  ` at col 10 with the count at
+col 17, `SCORE` at col 27 with the score ending at col 39 (all colour 3 labels, colour 1
+numbers). The title screen adds `DrawText(1, "VOL. n - ...", 20, 9)` over CF1.
