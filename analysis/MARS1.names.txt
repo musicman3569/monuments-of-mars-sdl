@@ -19,6 +19,46 @@
 1054:1c3f BlitMasked_Buf2           # (dst & mask) | pixels -> 2354:8A26
 1054:1ebb BlitMasked_Buf2_Collide   # same, and first samples 8 buffer bytes around it into 2354:492A-4931
 
+# Top level: main -> TitleScreen -> loop { MainMenu -> play levels -> CheckHighScore }
+1054:0001 SetHighFont               # INT 1Fh vector (font for chars 80h-FFh) -> 2354:(arg); 0006 normal, 01A6 alternate
+1054:0028 DrawText                  # (color, char far *s, row, col) via BIOS INT 10h, graphics mode
+1054:0316 DrawNumber                # ltoa + DrawText
+1054:0471 ClearScreen_guess         # zeroes 0x3F5E bytes
+1054:057a InputName                 # high-score name entry (getch, toupper)
+1054:088d DrawShots                 # "SHOTS  " + [2354:05D8]
+1054:099c FlashBackground_guess     # INT 10h AH=0Bh background colour flash (player death / F6)
+1054:0e53 DrawScore                 # score is the long at 2354:4871
+1054:3823 AnimateTiles_guess        # walks the list at 2354:C9A8 (count C92F), redraws into back buffer 1
+1054:3cc5 CopyBackground            # back buffer 1 (2354:4983) -> back buffer 2 (2354:8A26), 15999 bytes
+1054:3ce3 PresentFrame              # back buffer 2 -> B800 + 0x140, both banks
+1054:3d43 UpdatePlayer              # player at [05DC],[05DE]; input, sounds, collision blit
+1054:43d2 CheckLevelExit            # level++; after level 20 sets [05D5] and shows CONGRATULATIONS!
+1054:4fe1 UpdateEnemies49           # entity code 49 list (count CCD3); touching kills the player
+1054:51db UpdateEnemies4A           # entity code 4A list (count CCD4)
+1054:53e7 UpdateEnemies4B           # entity code 4B list (count CCD5)
+1054:55d9 UpdatePatrollers          # 18..19 range list (count CCCD), random movement
+1054:56c9 UpdateEntity46            # the single code-46 entity at [CCDA],[CCDB]; can kill the player
+1054:5978 UpdateObjects6E_guess     # code 6E list (count CCCF) and entity 46's row
+1054:5ba4 DrawObjects6E_guess       # code 6E list, masked blit
+1054:5bf2 RestartLevel              # after death / F6: shots = shots at level start, redraw status
+1054:5d20 CheatLevelSkip            # Caps Lock on: PgDn (51h) next level, ` (29h) previous level
+1054:5dc3 ShowSpecialNotice         # first run only (no MARS1.SPD): "*** SPECIAL NOTICE ***"
+1054:5ee9 TitleScreen               # CF1 with a Genus effect, "VOL. 1 - FIRST CONTACT", MARS1.SPD check
+1054:6106 ShowInstructions
+1054:6750 ShowStory                 # "THE STORY SO FAR..."
+1054:68f2 ShowOrderingInfo          # "HOW TO ORDER"; also shown on quit
+1054:6a94 ApplyKeyConfig_guess      # (key config byte from MARS1.KBD, default 'D')
+1054:6bbe SaveKeyConfig_guess
+1054:6c07 LoadKeyConfig             # MARS1.KBD, 1 byte
+1054:6c5e ConfigKeyboard            # "CONFIG KEYBOARD", "SAVING SETUP..."
+1054:6eb8 MainMenu                  # J/Enter/Space play, I, S, O, C, H, Esc/Q quit; '>' + Caps Lock = 20 shots
+1054:7526 LoadHighScores            # MARS1.HS: 10 x ("%lu" score, "%[^\n]" name); defaults if missing
+1054:766b SaveHighScores
+1054:76f2 ShowHighScores            # "*** HIGH SCORES ***"
+1054:77be CheckHighScore            # game over: insert score, InputName, SaveHighScores
+1054:7960 SaveGame                  # S key: MARS1.SV1 (level, shots), MARS1.SV2 ("%lu" score)
+1054:79fa RestoreGame               # R key
+
 # --- Turbo C runtime (huge model; each module loads its own DS) ---
 1d4f:0014 exit
 1dab:023e fopen
@@ -34,8 +74,8 @@
 1ef6:0000 movmem                    # (void far *src, void far *dst, unsigned n)
 1f17:0005 printf
 1f1a:002a fputc
-1fdb:0007 sprintf
-1fde:0003 sscanf
+1fdb:0007 fprintf                   # passes a FILE* and __fputc to the printer core
+1fde:0003 fscanf                    # passes a FILE* and fgetc to the scanner core
 1ffe:0000 getch
 1ffe:004e ungetch
 2075:000c abs

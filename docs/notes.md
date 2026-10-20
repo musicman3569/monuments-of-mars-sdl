@@ -121,3 +121,63 @@ Ghidra's auto-analysis missed functions in many small segments; expect to create
   `tiles game/MARS1.IGS gfx/mars1`, `levels unpacked/MARS1.EXE game/MARS1.IGS gfx/mars1`
   (also a .txt hex map per level; entity cells outlined in white), and
   `pcx game/MARS1.CF1 out.png` (palette from the header unless `--palette` is given).
+
+## Program flow
+
+`main` (1054:7adb) doesn't decompile, so read it with
+`python tools/annotate.py analysis/MARS1.disasm.txt unpacked/MARS1.EXE 1054:7adb`, which
+turns GhidraMCP's linear branch targets back into named `seg:off` and shows string arguments.
+
+1. Startup: `nosound`; remember the BIOS keyboard flags (0040:0017) and clear Caps Lock;
+   `LoadIGS("mars1.igs")`; `SetHighFont(0006)`; `SetVideoMode(4)`.
+2. `TitleScreen`: `LoadHighScores`, CF1 with a Genus effect, "VOL. 1 - FIRST CONTACT", wait
+   for a key. If `MARS1.SPD` doesn't exist, show `ShowSpecialNotice` and create it (it stays
+   empty; only its existence matters).
+3. Save INT 9 and INT 1Ch; install the timer ISR (1054:7aba) on INT 1Ch and a `ctrlbrk`
+   handler (1054:7953).
+4. **Menu loop** (1054:7b77): reset state, `SetVideoModePal1Bright(4)`, put back the BIOS
+   INT 9, `MainMenu`, then install the game's keyboard ISR (1054:0499) on INT 9.
+5. **Level start** (1054:7c1a): `SetVideoMode(4)`, draw "LEVEL" / "SCORE" status line, copy
+   the level map to 2354:8809, `DrawNumber(level+1)`, `DrawLevel`, `DrawShots`.
+6. **Frame loop** (1054:7c9a). The keyboard ISR leaves the last scancode in `[2354:C8AA]`:
+
+   | Scancode | Key    | Action                                                  |
+   |----------|--------|---------------------------------------------------------|
+   | 10 / 01  | Q / Esc| "PAUSED / QUIT (Y/N)"; Y ends the game                  |
+   | 1F       | S      | "SAVING.. ARE YOU SURE (Y/N)" -> `SaveGame`             |
+   | 13       | R      | "RESTORING. ARE YOU SURE" -> `RestoreGame`, redraw level|
+   | 3B       | F1     | sound on/off ([05D7]) with a banner                     |
+   | 3F       | F5     | pause until F5 again                                    |
+   | 40       | F6     | give up: back to the level start (as if killed)         |
+
+   Then, every frame: `CopyBackground`, `AnimateTiles`, `DrawObjects6E`, `UpdateEnemies49`,
+   `UpdateEnemies4A`, `UpdateEnemies4B`, `UpdatePatrollers`, `UpdatePlayer`. If the game is
+   over ([05D5]) -> `CheckHighScore` -> back to the menu loop. Otherwise
+   `UpdateObjects6E`, `UpdateEntity46`, `PresentFrame`, `CheckLevelExit`, **wait for the
+   timer ISR to set [CCD1]** (the frame clock), handle death ([05D6] -> `FlashBackground`,
+   `RestartLevel`), `CheatLevelSkip`. A level change ([CCE9]) jumps back to step 5.
+
+### Game state (DS 2354)
+
+| Address    | What                                                                   |
+|------------|------------------------------------------------------------------------|
+| 05D5       | game over / finished flag                                              |
+| 05D6       | player died (enemies set it; F6 too)                                   |
+| 05D7       | sound on                                                               |
+| 05D8       | shots (5 at the start; 0756 keeps the count from the level's start)     |
+| 05DB       | level, 0-based (20 levels)                                             |
+| 05DC/05DE  | player x (byte column) / y (scanline pair)                             |
+| 4871 (long)| score; 0757/0759 = score at the level's start                          |
+| 8803/8806  | respawn position                                                       |
+| 8809       | the current level map (240 bytes)                                      |
+| C8AA       | last keyboard scancode                                                 |
+| CCD1       | frame tick from the timer ISR                                          |
+| CCD6       | far pointer to 0040:0017 (BIOS keyboard flags)                          |
+
+There are no lives: dying restarts the level, with shots and score reset to what they were
+when the level started.
+
+### Cheats
+
+- Main menu, **Caps Lock on + `>`**: start with 20 shots.
+- In game, **Caps Lock on + PgDn / `**: next / previous level (`CheatLevelSkip`).
