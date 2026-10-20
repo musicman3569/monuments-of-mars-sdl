@@ -47,10 +47,10 @@
 1054:6106 ShowInstructions
 1054:6750 ShowStory                 # "THE STORY SO FAR..."
 1054:68f2 ShowOrderingInfo          # "HOW TO ORDER"; also shown on quit
-1054:6a94 ApplyKeyConfig_guess      # (key config byte from MARS1.KBD, default 'D')
-1054:6bbe SaveKeyConfig_guess
-1054:6c07 LoadKeyConfig             # MARS1.KBD, 1 byte
-1054:6c5e ConfigKeyboard            # "CONFIG KEYBOARD", "SAVING SETUP..."
+1054:6a94 ApplyKeyConfig            # (letter A-G, X, or 'a'): sets the ISR's keys [C8EC] [C92D] [C8AE] [8A25]; [CCDC] = the letter
+1054:6bbe SaveKeyConfig             # (letter) -> MARS1.KBD
+1054:6c07 LoadKeyConfig             # MARS1.KBD, 1 byte, or 'D' if there's no file; MainMenu calls it first
+1054:6c5e ConfigKeyboard            # main menu C: the 8 setups; A-G / X applies and saves, Esc leaves
 1054:6eb8 MainMenu                  # J/Enter/Space play, I, S, O, C, H, Esc/Q quit; '>' + Caps Lock = 20 shots
 1054:7526 LoadHighScores            # MARS1.HS: 10 x ("%lu" score, "%[^\n]" name); defaults if missing
 1054:766b SaveHighScores

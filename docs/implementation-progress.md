@@ -39,8 +39,8 @@ build/mars.exe game/MARS1.EXE --level 2 --script "30 10r 12 1rf 40"   # scripted
 ```
 
 The EXE may be the packed original or an unpacked one; MARSn.IGS / .CF1 must be next to it.
-Keys: arrows walk, Space jumps, Ctrl fires (placeholders until the key config is ported),
-Enter uses switches / levers / terminals, Q or Esc then Y quits, F1 sound, F5 pause, F6 give
+Keys: the setup in MARSn.KBD (default D: Alt / Ctrl or the arrows walk, Space jumps, left
+Shift fires), Enter uses switches / levers / terminals, Q or Esc then Y quits, F1 sound, F5 pause, F6 give
 up, Caps Lock + PgDn / ` skips levels (the game's cheat). F12 saves `shotNNN.png`.
 
 `--script` (port extra, for testing) plays without a window and without waiting for the timer,
@@ -71,7 +71,10 @@ With `--screenshot` it writes the last frame.
     CheatLevelSkip, and the in-game keys Q/Esc, F1, F5, F6 with their banners.
   - `platform` is SDL2: window, PC/XT scancodes fed through a copy of the game's keyboard ISR,
     getch / kbhit, delay, the 18.2 Hz tick, Caps Lock, PC speaker tone.
-  - `main` shows the title screen (CF1 + "VOL. n - ..." from the EXE), then plays.
+  - `keyconfig` is LoadKeyConfig / ApplyKeyConfig / SaveKeyConfig and the ConfigKeyboard
+    screen (ready for the main menu's C; its text comes from the EXE).
+  - `main` shows the title screen (CF1 + "VOL. n - ..." from the EXE), loads the key setup
+    (as MainMenu would), then plays.
 - Checked with `--script`: walking over slopes, falling, the level 1 exit (-> level 2, +2000),
   dying and restarting, shooting a robot (+500), picking up +3 shots and a gem; all 20 MARS1
   levels and levels of MARS2-4 run 150 frames without trouble; the windowed game runs.
@@ -100,26 +103,22 @@ With `--screenshot` it writes the last frame.
 - Verified against the code: `gfx`, `text`, `level_draw`, the status line layout, and `game`
   routine by routine (decompiler output cross-checked with the disassembly wherever Ghidra's
   output was garbled: TouchTile's jump table, UpdatePlayerShot, the rescue / ending screens).
-- **Not yet compared with the original running in DOSBox.** Worth checking side by side: the
-  feel of jumping and walking, the shot / boulder interactions, the drip RNG sequence.
-- Not exercised by a test yet: switches / force fields, levers, the turret and its generator,
-  boulders being pushed, card and door, M-A-R-S, terminals, the end of a volume.
 - Deviations: the background flashes are as brief as the original's (they set and reset the
   colour back to back), so they hardly show; after level 20 the port ends the game straight
   away, where the original first draws "LEVEL 21" over a level built from the bytes after the
   level table; window close quits from any wait.
-- The jump / fire keys are placeholders (Space / Ctrl) until ApplyKeyConfig (1054:6a94) is
-  ported. The main menu, high scores and save / restore (S / R in game) aren't ported: the
-  port goes straight from the title into the game and exits when it's over.
+- The main menu, high scores and save / restore (S / R in game) aren't ported: the port goes
+  straight from the title into the game and exits when it's over. So the ConfigKeyboard screen
+  isn't reachable yet; it was checked with a throwaway harness (layout in volumes 1 and 4,
+  choosing G applies and saves it).
+- Play-tested by the user against the original: the frame loop matches.
 - The rescue and ending texts are read from the EXE by their first line and the lines after
   it; only MARS1's layout has been checked.
 
 ## Next steps (suggested order)
 
-1. Play-test against DOSBox, especially the mechanics listed above as not exercised.
-2. Key config (MARS1.KBD, ApplyKeyConfig / ConfigKeyboard).
-3. Main menu (CF2, palette 1 bright, the 20-shot cheat), instructions / story / ordering
+1. Main menu (CF2, palette 1 bright, the 20-shot cheat), instructions / story / ordering
    screens, high scores (LoadHighScores, CheckHighScore, InputName), save / restore (S / R
    in game, MARS1.SV1 / .SV2), MARS1.SPD and the special notice.
-4. The Genus PCX transitions on the title screen.
-5. Close the open questions in `docs/notes.md` (codes 14 / 15, 81 / 82).
+2. The Genus PCX transitions on the title screen.
+3. Close the open questions in `docs/notes.md` (codes 14 / 15, 81 / 82).

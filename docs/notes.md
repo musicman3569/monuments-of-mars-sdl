@@ -206,8 +206,27 @@ scancode == [C92D] or 4Dh -> [CCD2] = 1 (right)   release -> 0   (4Dh = Right ar
 in al,61h / toggle bit 7 (keyboard ack) / EOI / iret
 ```
 
-The four configurable keys come from `ConfigKeyboard` / `MARS1.KBD`. Switches, levers and
-terminals use **Enter** (scancode 1C) while standing on them.
+The four configurable keys come from `MARS1.KBD`: one letter naming a fixed setup.
+`LoadKeyConfig` (1054:6c07, the first thing MainMenu does) reads it, or uses 'D' when there's
+no file; `ConfigKeyboard` (1054:6c5e, the menu's C) lets the player pick one and saves it
+(`SaveKeyConfig`). `ApplyKeyConfig` (1054:6a94) sets the scancodes:
+
+| Setup | Left        | Right        | Jump          | Fire          |
+|-------|-------------|--------------|---------------|---------------|
+| A     | Ctrl (1D)   | Alt (38)     | R.Shift (36)  | Space (39)    |
+| B     | Ctrl        | Alt          | Space         | R.Shift       |
+| C     | Alt         | Ctrl         | L.Shift (2A)  | Space         |
+| D     | Alt         | Ctrl         | Space         | L.Shift       |
+| E     | Ins (52)    | Del (53)     | Alt           | Space         |
+| F     | F9 (43)     | F10 (44)     | R.Shift       | Space         |
+| G     | Left (4B)   | Right (4D)   | Ctrl          | Alt           |
+| X     | Left        | Right        | Space         | L.Shift       |
+
+The arrows always walk too. ApplyKeyConfig also accepts a lower-case 'a' (as A) but no other
+lower-case letter; anything else leaves the keys alone (an empty KBD file gives EOF, so no
+jump or fire key at all). The menu loop zeroes the four keys before MainMenu reloads them.
+
+Switches, levers and terminals use **Enter** (scancode 1C) while standing on them.
 
 ## Player (UpdatePlayer, 1054:3d43)
 

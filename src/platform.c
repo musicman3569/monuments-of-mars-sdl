@@ -7,9 +7,8 @@
 
 #include "cga.h"
 
-/* Placeholder keys (Space jump, Ctrl fire) until ApplyKeyConfig (1054:6a94) is ported: the
- * game sets them from MARS1.KBD, default 'D'. */
-isr_keys_t isr_keys = {0, false, false, false, false, 0x39, 0x1D, 0x4B, 0x4D};
+/* The four configurable keys start at 0; keyconfig_apply sets them. */
+isr_keys_t isr_keys;
 bool plat_isr_installed;
 
 static SDL_Window *win;

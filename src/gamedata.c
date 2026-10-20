@@ -164,6 +164,16 @@ const char *gamedata_find_string(const gamedata_t *g, const char *prefix)
     return NULL;
 }
 
+const char *gamedata_find_exact(const gamedata_t *g, const char *s)
+{
+    const size_t n = strlen(s) + 1; /* with the terminating 0 */
+    const size_t end = g->ds + 0x10000 < g->image_len ? g->ds + 0x10000 : g->image_len;
+    for (size_t i = g->ds; i + n <= end; i++)
+        if ((i == g->ds || g->image[i - 1] == 0) && !memcmp(g->image + i, s, n))
+            return (const char *)g->image + i;
+    return NULL;
+}
+
 const char *gamedata_next_string(const gamedata_t *g, const char *s)
 {
     if (!s)

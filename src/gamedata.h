@@ -51,6 +51,9 @@ const uint8_t *gamedata_ds(const gamedata_t *g, unsigned off, size_t len);
 /* The first string in the data segment that starts with `prefix`, or NULL. */
 const char *gamedata_find_string(const gamedata_t *g, const char *prefix);
 
+/* The first string in the data segment that is exactly `s`, or NULL. */
+const char *gamedata_find_exact(const gamedata_t *g, const char *s);
+
 /* The string after `s` in the data segment (Turbo C lays string literals out one after the
  * other), or NULL. */
 const char *gamedata_next_string(const gamedata_t *g, const char *s);

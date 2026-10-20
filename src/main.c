@@ -20,6 +20,7 @@
 #include "cga.h"
 #include "gamedata.h"
 #include "game.h"
+#include "keyconfig.h"
 #include "pcx.h"
 #include "platform.h"
 #include "text.h"
@@ -102,8 +103,10 @@ int main(int argc, char **argv)
     const int level = opt.level >= 1 && opt.level <= LEVELS ? opt.level - 1 : 0;
 
     if (opt.screenshot || opt.script) {
-        if (opt.level || opt.script)
+        if (opt.level || opt.script) {
+            keyconfig_load(&data);
             game_run_script(&data, level, 5, opt.script ? opt.script : "1");
+        }
         else if (title_screen(&data, err, sizeof err) != 0) {
             fail(err);
             gamedata_free(&data);
@@ -130,7 +133,9 @@ int main(int argc, char **argv)
         }
         plat_getch();
     }
-    /* TODO MainMenu (1054:6eb8) and the high scores; for now straight into the game. */
+    /* TODO MainMenu (1054:6eb8) and the high scores; for now straight into the game, after the
+     * one thing MainMenu does first: load the key setup. */
+    keyconfig_load(&data);
     game_play(&data, level, 5);
 
     plat_shutdown();
