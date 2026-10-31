@@ -1351,6 +1351,12 @@ static float m_anim[3];  /* frames, for the walkers' animation */
 static int m_wframe[3];
 static int m_support;    /* what the player stands on (an m_at result) */
 static int m_wall_l, m_wall_r, m_ceiling; /* the player's last wall and ceiling tests */
+/* A jump needs a fresh press (the original jumps again on landing while it's held, which at
+ * 120 steps a second under a low ceiling is a new jump, and its sound, every step). A press
+ * shortly before landing still counts: m_jump_press is how many frames it has left. */
+#define M_JUMP_BUFFER 2.0f
+static bool m_jump_was_held;
+static float m_jump_press;
 
 /* Explosions: the original draws its 5 tiles over each other for one frame; here they play. */
 typedef struct { float x, y, t; } fx_t;
@@ -1644,14 +1650,20 @@ static void m_update_player(void)
             }
         }
     }
-    if (K.jump && !jump_over && can_jump && on_ground) {
+    if (K.jump && !m_jump_was_held)
+        m_jump_press = M_JUMP_BUFFER;
+    m_jump_was_held = K.jump;
+    if (m_jump_press > 0 && !jump_over && can_jump && on_ground) {
         on_ground = 0;
         can_jump = 0;
         m_big = 1;
         m_jump = 0;
         m_air = 0;
+        m_jump_press = 0;
         sound_jump();
     }
+    if (m_jump_press > 0)
+        m_jump_press -= M_TICK;
 
     m_update_vplatforms();
     m_update_hplatforms();
@@ -1916,7 +1928,8 @@ static void m_start_level(void)
             p->x = p->ox = (float)(lists[k].l->r[i].col * 4);
             p->y = p->oy = (float)(lists[k].l->r[i].row * 2);
         }
-    m_air = m_jump = m_big = m_tiles = 0;
+    m_air = m_jump = m_big = m_tiles = m_jump_press = 0;
+    m_jump_was_held = K.jump; /* a jump held through a restart doesn't count */
     m_support = m_wall_l = m_wall_r = m_ceiling = 0;
     m_nfx = 0;
     m_exit_cell = -1;

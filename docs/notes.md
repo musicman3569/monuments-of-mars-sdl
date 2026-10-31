@@ -530,7 +530,10 @@ The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot'
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows.
 
-**Other differences**: turning doesn't cost a frame; standing on a platform moves with it
+**Other differences**: a jump needs a fresh press of the jump key (the original jumps again on
+landing while it's held; at 120 steps a second under a low ceiling that was a new jump, and
+its sound, every step), and a press up to 2 frames (110 ms) before landing jumps on landing;
+turning doesn't cost a frame; standing on a platform moves with it
 exactly (the original rides horizontal ones and is pushed up by vertical ones through the
 step-up); walking into a boulder pushes it at walking speed when nothing is on its other side
 (the original recognises the player's sprite bytes beside it); the enemy explosion plays its 5
