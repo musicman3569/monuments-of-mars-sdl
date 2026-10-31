@@ -74,6 +74,18 @@ unsigned plat_ticks(void);
 void plat_sound(int hz);
 void plat_nosound(void);
 
+/* game.physics = modern: a sound effect that doesn't stop the game. Between begin and end,
+ * plat_sound, plat_nosound and plat_delay don't happen at once but are written down; end
+ * then plays them from the audio thread, cutting off the effect before. */
+void plat_sfx_begin(void);
+void plat_sfx_end(void);
+
+/* For game.physics = modern's frame loop: seconds since start, the display's refresh rate,
+ * and a short wait (a millisecond) that keeps the window alive. */
+double plat_seconds(void);
+int plat_refresh_hz(void);
+void plat_idle(void);
+
 /* The CGA state changed (video memory or palette): show it on the next poll. */
 void plat_dirty(void);
 

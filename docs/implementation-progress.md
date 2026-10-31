@@ -55,11 +55,14 @@ high-score name and the cheats need the keyboard. A `gamecontrollerdb.txt` next 
 adds controller mappings.
 
 Presets and settings (port extra, `settings.c`, like ptomb-port's): `--classic` (the default:
-the original game) or `--enhanced` (every enhancement on), then `mars.ini` next to mars.exe
-(or `--config FILE`), then `--set section.key=value`. `--print-settings` writes a commented
-mars.ini. Enhancements: `display.smooth` (moving things glide at the monitor's refresh rate;
-F4 switches it while playing, and the window title says when it's on) and
-`input.quick_taps` (a tap between two frames still counts).
+the original game), `--enhanced` (the original's rules with the display and input
+enhancements) or `--modern` (the game run at 120 steps a second), then `mars.ini` next to
+mars.exe (or `--config FILE`), then `--set section.key=value`. `--print-settings` writes a
+commented mars.ini. Enhancements: `game.physics = modern` (things move a pixel at a time at
+120 steps a second, drawn at the monitor's refresh rate, and sound effects don't stop the
+game; see notes.md, "Modern physics"), `display.smooth` (with classic physics, moving things
+glide at the monitor's refresh rate; F4 switches it while playing, and the window title says
+when it's on) and `input.quick_taps` (a tap between two frames still counts).
 
 `--script` (port extra, for testing) plays without a window and without waiting for the timer,
 holding the keys of each token for its frame count (`l r j f e` = left, right, jump, fire,
@@ -108,8 +111,14 @@ it with Esc.
     X press the configured jump / fire keys, so the KBD setup still applies), outside it
     characters in the BIOS buffer. Each button releases the code it pressed, and game.c
     flags the Y/N questions (`pad_set_yes_no`) so A / B answer them. Hotplugging works.
-  - `settings` (port extra) is the classic / enhanced presets and mars.ini, trimmed from
-    ptomb-port's.
+  - `settings` (port extra) is the classic / enhanced / modern presets and mars.ini, trimmed
+    from ptomb-port's.
+  - `game` also has modern physics (port extra, `game.physics = modern`): its own frame loop
+    at 120 fixed steps a second, float positions, the original's collision points tested
+    pixel by pixel, and drawing between steps at the display's rate (`blit_masked_px` in
+    gfx.c). The code shared with classic only differs where `modern` is tested (one use of
+    Enter per press, sound effects handed to the audio thread through `plat_sfx_begin` /
+    `_end`, the rescue message on entering its cell). See notes.md, "Modern physics".
   - `smooth` (port extra, `display.smooth`) is the display layer: gfx.c reports each frame's
     CopyBackground, opaque and masked blits into buffer 2 and PresentFrame; game.c tags the
     moving things' blits (`smooth_id`); the window shows the frame's background with the
@@ -172,6 +181,9 @@ it with Esc.
   shorter than a frame (55 ms) can be missed, as in the original (classic). Enhanced
   (`input.quick_taps`) counts it.
 - Play-tested by the user against the original: the frame loop matches.
+- Modern physics: checked with scripts against classic (jumps, walking, platforms, boulders;
+  see notes.md) and live at 142 pictures a second on a 144 Hz display; classic's 240
+  regression runs are unchanged. Not yet play-tested by hand.
 - The rescue and ending texts are read from the EXE by their first line and the lines after
   it; only MARS1's layout has been checked.
 

@@ -6,7 +6,7 @@
 
 settings_t settings;
 
-typedef enum { T_BOOL, T_PRESET } type_t;
+typedef enum { T_BOOL, T_PRESET, T_PHYSICS } type_t;
 
 /* Every setting, with its value in each preset. Rows of one section stay together (the
  * written file follows this order). */
@@ -14,16 +14,21 @@ static const struct {
     const char *key;   /* section.name */
     type_t type;
     size_t offset;     /* in settings_t */
-    int classic, enhanced;
+    int value[3];      /* in each preset (preset_t) */
     const char *help;
 } table[] = {
-    {"game.preset", T_PRESET, offsetof(settings_t, preset), PRESET_CLASSIC, PRESET_ENHANCED,
-     "classic = the original game; enhanced = with every enhancement. Settings below override it"},
-    {"display.smooth", T_BOOL, offsetof(settings_t, smooth), 0, 1,
+    {"game.preset", T_PRESET, offsetof(settings_t, preset), {PRESET_CLASSIC, PRESET_ENHANCED, PRESET_MODERN},
+     "classic = the original game; enhanced = with the display and input enhancements;\n"
+     "; modern = rewritten to run at 120 steps a second. Settings below override it"},
+    {"game.physics", T_PHYSICS, offsetof(settings_t, physics), {PHYSICS_CLASSIC, PHYSICS_CLASSIC, PHYSICS_MODERN},
+     "classic = the original's 18 steps a second, things moving 4 pixels across at a time;\n"
+     "; modern = 120 steps a second, a pixel at a time, drawn at the monitor's refresh rate,\n"
+     "; with sounds that no longer pause the game. The levels and rules are the same"},
+    {"display.smooth", T_BOOL, offsetof(settings_t, smooth), {0, 1, 0},
      "smooth movement: things glide between the game's steps (18 a second, 4 pixels across),\n"
      "; shown at the monitor's refresh rate. Only the picture changes; the game runs as before.\n"
-     "; F4 switches"},
-    {"input.quick_taps", T_BOOL, offsetof(settings_t, quick_taps), 0, 1,
+     "; F4 switches. Not used with game.physics = modern, which draws every step itself"},
+    {"input.quick_taps", T_BOOL, offsetof(settings_t, quick_taps), {0, 1, 1},
      "a key or button tapped and let go between two of the game's frames (18 a second) still\n"
      "; counts for the next frame. Off = the original, which only sees what is held as a frame\n"
      "; starts, so a quick tap of jump or Enter can be missed"},
@@ -38,7 +43,7 @@ static int *field(size_t i)
 void settings_reset(preset_t preset)
 {
     for (size_t i = 0; i < N_SETTINGS; i++)
-        *field(i) = preset == PRESET_ENHANCED ? table[i].enhanced : table[i].classic;
+        *field(i) = table[i].value[preset];
     settings.preset = (int)preset;
 }
 
@@ -48,6 +53,8 @@ int settings_preset_by_name(const char *name)
         return PRESET_CLASSIC;
     if (!strcmp(name, "enhanced"))
         return PRESET_ENHANCED;
+    if (!strcmp(name, "modern"))
+        return PRESET_MODERN;
     return -1;
 }
 
@@ -68,10 +75,17 @@ int settings_set(const char *key, const char *value, char *err, size_t errlen)
     for (size_t i = 0; i < N_SETTINGS; i++) {
         if (strcmp(key, table[i].key) != 0)
             continue;
-        const int v = table[i].type == T_BOOL ? parse_bool(value) : settings_preset_by_name(value);
+        const int v = table[i].type == T_BOOL     ? parse_bool(value)
+                      : table[i].type == T_PRESET ? settings_preset_by_name(value)
+                      : !strcmp(value, "classic") ? PHYSICS_CLASSIC
+                      : !strcmp(value, "modern")  ? PHYSICS_MODERN
+                                                  : -1;
         if (v < 0) {
             snprintf(err, errlen, "%s must be %s, not '%s'", key,
-                     table[i].type == T_BOOL ? "on or off" : "classic or enhanced", value);
+                     table[i].type == T_BOOL     ? "on or off"
+                     : table[i].type == T_PRESET ? "classic, enhanced or modern"
+                                                 : "classic or modern",
+                     value);
             return -1;
         }
         *field(i) = v;
@@ -153,8 +167,9 @@ void settings_write(FILE *f)
             snprintf(section, sizeof section, "%.*s", slen, table[i].key);
             fprintf(f, "\n[%s]\n", section);
         }
+        static const char *const presets[] = {"classic", "enhanced", "modern"}, *const physics[] = {"classic", "modern"};
         const int v = *field(i);
         fprintf(f, "; %s\n%s = %s\n", table[i].help, dot + 1,
-                table[i].type == T_BOOL ? (v ? "on" : "off") : v == PRESET_ENHANCED ? "enhanced" : "classic");
+                table[i].type == T_BOOL ? (v ? "on" : "off") : table[i].type == T_PRESET ? presets[v] : physics[v]);
     }
 }

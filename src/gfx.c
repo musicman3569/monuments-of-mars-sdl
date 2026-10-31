@@ -158,6 +158,22 @@ void blit_masked_buf2_collide(const uint8_t *tile, int row, int col)
     blit_masked(back2, tile, row, col);
 }
 
+void blit_masked_px(uint8_t *buf, const uint8_t *t, int x, int y)
+{
+    for (int ly = 0; ly < 16; ly++) {
+        if (y + ly < 0 || y + ly >= PLAYFIELD_LINES)
+            continue;
+        const uint8_t *row = t + (ly & 1) * 0x40 + (ly >> 1) * 8;
+        for (int lx = 0; lx < 16; lx++) {
+            if (x + lx < 0 || x + lx >= CGA_W)
+                continue;
+            const int shift = 6 - 2 * (lx & 3);
+            const int mask = (row[2 * (lx >> 2)] >> shift) & 3, pix = (row[2 * (lx >> 2) + 1] >> shift) & 3;
+            cga_set_in(buf, x + lx, y + ly, (cga_get_in(buf, x + lx, y + ly) & mask) | pix);
+        }
+    }
+}
+
 void copy_background(void)
 {
     memcpy(back2, back1, 15999);

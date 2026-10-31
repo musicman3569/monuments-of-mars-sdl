@@ -1,13 +1,14 @@
 /* The port's own settings: which enhancements are on. Like ptomb-port's.
  *
- * Two presets:
+ * Three presets:
  *   classic   the original game (the default)
- *   enhanced  classic plus every enhancement
- * Each setting has a value for each preset: enhancements are off in classic and on in
- * enhanced.
+ *   enhanced  the original game's rules, with the display and input enhancements
+ *   modern    the game rewritten to run at 120 steps a second (game.physics = modern)
+ * Each setting has a value for each preset: enhancements are off in classic.
  *
  * Where they come from, later ones winning:
- *   1. the preset (from --classic / --enhanced, else game.preset in the file, else classic)
+ *   1. the preset (from --classic / --enhanced / --modern, else game.preset in the file,
+ *      else classic)
  *   2. mars.ini next to mars.exe (or the --config file)
  *   3. the command line: --set section.key=value
  *
@@ -20,10 +21,13 @@
 #include <stddef.h>
 #include <stdio.h>
 
-typedef enum { PRESET_CLASSIC, PRESET_ENHANCED } preset_t;
+typedef enum { PRESET_CLASSIC, PRESET_ENHANCED, PRESET_MODERN } preset_t;
+typedef enum { PHYSICS_CLASSIC, PHYSICS_MODERN } physics_t;
 
 typedef struct {
     int preset;     /* game.preset: preset_t */
+    int physics;    /* game.physics: physics_t. modern (enhancement): things move a pixel at a
+                       time, 120 steps a second, drawn at the monitor's refresh rate */
     int smooth;     /* display.smooth (enhancement): moving things glide between the game's
                        steps, drawn at the monitor's refresh rate (smooth.h) */
     int quick_taps; /* input.quick_taps (enhancement): a key or button tapped between two
@@ -38,7 +42,7 @@ void settings_reset(preset_t preset);
 /* Set one setting from text, e.g. ("display.smooth", "on"). Returns 0, or -1 with a message. */
 int settings_set(const char *key, const char *value, char *err, size_t errlen);
 
-/* A preset's name to its value ("classic" / "enhanced"); -1 if unknown. */
+/* A preset's name to its value ("classic" / "enhanced" / "modern"); -1 if unknown. */
 int settings_preset_by_name(const char *name);
 
 /* Read an INI file into key/value pairs without applying them, so the caller can pick the

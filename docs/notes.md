@@ -491,6 +491,62 @@ stand in [C8AA] for it; `plat_frame_input_end` takes them back unless the key ch
 Only Enter of the scancode keys: pause (F5) and the Y/N questions wait for [C8AA] to change,
 which a made-up press would confuse.
 
+## Modern physics (port enhancement, game.physics = modern)
+
+The `modern` preset rewrites how things move, not what the levels or rules are. Everything
+that moves keeps a float position in pixels (y in back-buffer scanlines) and moves at its
+original average speed, in M_HZ = 120 fixed steps a second (`run_level_modern`, the "modern
+physics" section of game.c). Drawing is separate: whenever the display can show a picture,
+`m_render` draws every thing between its last two positions with a pixel-exact masked blit
+(`blit_masked_px`) into a copy of back buffer 1, and puts the playfield into video memory.
+So the window gets a new picture at the monitor's rate while the game runs at 120 steps
+whatever the display does, and a slow device draws less often without the game changing.
+
+**Speeds** (px per original frame, a step being 18.2 / 120 = 0.15 of one): walking 8/3,
+vertical platforms 1, horizontal 4/3, the crawler (49) 4/3, robots and floor walkers (4A,
+4B) 2, drips 2, the bolt 4, the shot 8, boulders falling 2 (sliding off an edge, 4 across).
+The jump keeps the original's two parts as straight lines through its steps: gravity
+`min(4, t / 2)` rows per frame, t counting frames in the air (FallV >> 1), and the jump's
+push `13/3 - t / 6` (the (9 - JumpT) >> 1 steps, JumpT counting every 3 frames). That rises
+14 rows (28 px), the original's height, in the same time: a scripted standing jump lands on
+the same rows frame for frame, and a running one at the same places.
+
+**Collision** keeps the original's test points, in pixels and at every step: walls are the
+column 3 px in from either side of the sprite (where its outer bytes end), over scanlines
+4-10; the ground the scanline under the feet (x+4..x+11); feet in the floor scanlines
+11-15 (stepped up at once, up to 5 px a step, which is how slopes and a ledge reached at a
+jump's top are climbed); the ceiling the scanline above the head. A pixel that isn't black is
+solid, plus the platforms' and boulders' own pixels. Falls and rises move a scanline at a time
+and stop at the ground or the ceiling, so landings are exact (the original sinks up to 3 rows
+into the floor, then climbs out a row a frame). Walking down a slope or a small step keeps
+to it rather than falling. The lowest the player goes is row 58h, not the original's clamp of
+54h: the original clamps before its gravity, which carries it up to 4 rows further, and exits
+at the bottom of an open shaft (level 4) sit in the map's last row, reached only at 58h.
+
+Kept from the original, because the levels depend on it: boulders and drips test only the
+even scanline under them, as the original's 2-row steps do; tested on every scanline, the
+level 14 boulders catch on the letters they should fall past and fail to cover the spikes.
+The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
+rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
+to its byte columns and rows.
+
+**Other differences**: turning doesn't cost a frame; standing on a platform moves with it
+exactly (the original rides horizontal ones and is pushed up by vertical ones through the
+step-up); walking into a boulder pushes it at walking speed when nothing is on its other side
+(the original recognises the player's sprite bytes beside it); the enemy explosion plays its 5
+tiles over 5 frames instead of drawing them all in one; Enter acts once per press (the
+original acts every frame it is held, with a 200 ms pause to slow that down, which modern
+drops); the rescue message shows on entering its cell rather than every frame on it. Sound
+effects no longer stop the game: between `plat_sfx_begin` and `plat_sfx_end` the tones and
+delays are written down and played by the audio thread. Animations (doors, blocks, the
+rings, the death explosion) and messages still stop it, as in the original; the step loop
+then carries on rather than catching up.
+
+**Checked** with `--script` (frame counts stay the original's frames, about 6.6 steps
+each): standing and running jumps land on the original's rows; walking matches to within a
+frame; riding the level 18 platforms matches; the level 14 boulders end up where they do in
+classic; all 240 regression runs play without trouble.
+
 ## Text (DrawText, 1054:0028)
 
 `DrawText(color, char far *s, row, col)` (Pascal-style, callee pops 10 bytes) sets the cursor

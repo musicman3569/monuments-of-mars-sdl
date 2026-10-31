@@ -61,6 +61,11 @@ void blit_enemy4a(const uint8_t *tile, int row, int col);    /* 1054:262f -> pro
 void blit_enemy4b(const uint8_t *tile, int row, int col);    /* 1054:279a -> probe[0..3] */
 void blit_hplat(const uint8_t *tile, int row, int col);      /* 1054:2907 -> probe[4..5] */
 
+/* Port extra for game.physics = modern: a masked tile at any pixel of a buffer in this layout,
+ * x from 0..319, y in scanlines; what falls off the playfield's 195 scanlines is left out. */
+void blit_masked_px(uint8_t *buf, const uint8_t *tile, int x, int y);
+#define PLAYFIELD_LINES 195
+
 void copy_background(void); /* CopyBackground, 1054:3cc5 */
 void present_frame(void);   /* PresentFrame, 1054:3ce3 */
 

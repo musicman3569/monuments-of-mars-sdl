@@ -7,6 +7,7 @@
  * it's shot, the letters bonus pays 2000 for every letter flag still set, and so on. */
 #include "game.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,7 @@
 #include "hiscore.h"
 #include "level.h"
 #include "platform.h"
+#include "settings.h"
 #include "smooth.h"
 #include "text.h"
 
@@ -82,6 +84,13 @@ static int next_letter;            /* CCC8: 0, then 'm', 'a', 'r', 's' */
 static int rings_done;             /* 05A6 */
 
 static int scripted;               /* --script: Y/N questions answer yes */
+
+/* game.physics = modern (see "modern physics" below). The rest of the game is shared, with a
+ * few differences that only exist when this is set. */
+static int modern;
+static bool m_enter;               /* Enter went down at this step: one press, one use */
+static int m_exit_cell = -1;       /* the map cell CheckLevelExit last saw the player in */
+static void m_explosion(float x, float y);
 
 #define K (isr_keys)
 #define SC (isr_keys.scancode) /* [C8AA] */
@@ -157,48 +166,137 @@ static void kill_player(int dy) /* the deadly cases all do this */
     death_y = py + dy;
 }
 
+/* Enter used on a switch, lever or terminal. The original tests the last key ([C8AA]), so it
+ * acts on every frame Enter is held; modern counts one use per press. */
+static bool use_enter(void)
+{
+    if (!modern)
+        return SC == ENTER;
+    const bool e = m_enter;
+    m_enter = false;
+    return e;
+}
+
+/* The pause before a switch's sound, which keeps a held Enter from flipping it every frame;
+ * modern has no need of it. */
+static void debounce(void)
+{
+    if (!modern)
+        delay(200);
+}
+
 /* ------------------------------------------------------------------ sounds ---- */
+
+/* The effects stop the game while they play (they wait with delay()); with modern they are
+ * handed to the audio thread instead. */
+static void sfx_begin(void)
+{
+    if (modern)
+        plat_sfx_begin();
+}
+
+static void sfx_end(void)
+{
+    if (modern)
+        plat_sfx_end();
+}
 
 static void sound_jump(void) /* 1054:068b */
 {
     static const int f[] = {700, 500, 700, 900, 1500, 1900, 2200};
+    sfx_begin();
     for (int i = 0; i < 7; i++) {
         delay(8);
         play(f[i]);
     }
     nosound();
+    sfx_end();
 }
 
 static void sound_drip(void) /* 1054:0724 */
 {
     static const int f[] = {800, 1000, 1200, 1400, 1600};
+    sfx_begin();
     for (int i = 0; i < 5; i++) {
         delay(8);
         play(f[i]);
     }
     nosound();
+    sfx_end();
 }
 
 static void sound_switch(void) /* 1054:0795 */
 {
     static const int f[] = {200, 300, 400, 500, 600, 400};
+    sfx_begin();
     for (int i = 0; i < 6; i++) {
         delay(8);
         play(f[i]);
     }
     delay(8);
     nosound();
+    sfx_end();
 }
 
 static void sound_pickup(void) /* 1054:0825 */
 {
     static const int f[] = {200, 210, 220, 250};
+    sfx_begin();
     for (int i = 0; i < 4; i++) {
         delay(10);
         play(f[i]);
     }
     delay(10);
     nosound();
+    sfx_end();
+}
+
+static void sound_gem(void) /* in TouchTile */
+{
+    static const int f[] = {2000, 1500, 1750, 2000, 1500, 1250};
+    sfx_begin();
+    for (int i = 0; i < 6; i++) {
+        delay(10);
+        play(f[i]);
+    }
+    nosound();
+    sfx_end();
+}
+
+static void sound_explosion(void) /* in EnemyExplosion */
+{
+    static const int f[] = {300, 250, 200, 250, 300, 250};
+    sfx_begin();
+    for (int i = 0; i < 6; i++) {
+        delay(10);
+        play(f[i]);
+    }
+    nosound();
+    sfx_end();
+}
+
+static void sound_shot(void) /* in UpdatePlayerShot */
+{
+    static const int f[] = {900, 850, 800, 750, 800, 850};
+    sfx_begin();
+    for (int i = 0; i < 6; i++) {
+        delay(10);
+        play(f[i]);
+    }
+    nosound();
+    sfx_end();
+}
+
+static void sound_bolt(void) /* in UpdateTurret */
+{
+    static const int f[] = {1200, 1350, 900, 850, 300, 650};
+    sfx_begin();
+    for (int i = 0; i < 6; i++) {
+        delay(6);
+        play(f[i]);
+    }
+    nosound();
+    sfx_end();
 }
 
 /* ------------------------------------------------------------------ the map's specials ---- */
@@ -287,8 +385,8 @@ static int find_special_at(uint8_t y, uint8_t x)
             return s;
         }
         if (s >= 0x0F && s <= 0x12) {
-            if (SC == ENTER) {
-                delay(200);
+            if (use_enter()) {
+                debounce();
                 sound_switch();
                 switches(s == 0x0F || s == 0x12);
             }
@@ -340,12 +438,14 @@ static void letters(void)
         if (next_letter == 'r') {
             next_letter = 's';
             got_s = 0;
+            sfx_begin();
             for (int i = 1; i < 25; i++)
                 for (int j = 1; j < 14; j++) {
                     play(i * i * j);
                     delay(j + 1);
                 }
             nosound();
+            sfx_end();
             draw_score(10000);
         }
     }
@@ -490,9 +590,9 @@ static void touch_tile(int code)
     switch (code) {
     case 0x09: /* force-field switch, off */
     case 0x0A: /* ... and on */
-        if (SC != ENTER)
+        if (!use_enter())
             break;
-        delay(200);
+        debounce();
         sound_switch();
         for (int i = 0; i < lv.special.n; i++) {
             rec_t *r = &lv.special.r[i];
@@ -523,9 +623,9 @@ static void touch_tile(int code)
         break;
     case 0x16:
     case 0x17:
-        if (SC != ENTER)
+        if (!use_enter())
             break;
-        delay(200);
+        debounce();
         sound_switch();
         lever(code);
         break;
@@ -535,17 +635,11 @@ static void touch_tile(int code)
     case 0x43: /* the energy rings kill 2 rows higher (for RestartLevel's explosion) */
         kill_player(-2);
         break;
-    case 0x3A: { /* gem */
-        static const int f[] = {2000, 1500, 1750, 2000, 1500, 1250};
+    case 0x3A: /* gem */
         take_found();
-        for (int i = 0; i < 6; i++) {
-            delay(10);
-            play(f[i]);
-        }
-        nosound();
+        sound_gem();
         draw_score(1000);
         break;
-    }
     case 0x56:
         take_found();
         got_m = 1;
@@ -571,9 +665,9 @@ static void touch_tile(int code)
         letters();
         break;
     case 0x70: /* computer terminal */
-        if (SC != ENTER)
+        if (!use_enter())
             break;
-        delay(200);
+        debounce();
         sound_switch();
         switch (gd->terminal_action[level]) {
         case 1:
@@ -667,12 +761,11 @@ static void update_hplatforms(void)
 /* EnemyExplosion (1054:2a5b). */
 static void enemy_explosion(int col, int row)
 {
-    static const int f[] = {300, 250, 200, 250, 300, 250};
-    for (int i = 0; i < 6; i++) {
-        delay(10);
-        play(f[i]);
+    if (modern) {
+        m_explosion((float)(col * 4), (float)(row * 2));
+        return;
     }
-    nosound();
+    sound_explosion();
     for (int t = 0x2A; t <= 0x2E; t++)
         blit_masked_buf2(tile(t), row, col);
 }
@@ -784,12 +877,7 @@ static void update_turret(void)
             bolt_dir = px < lv.turret_col ? -1 : 1;
             bolt_active = 1;
             bolt_col = (uint8_t)(lv.turret_col + bolt_dir * 3);
-            static const int f[] = {1200, 1350, 900, 850, 300, 650};
-            for (int i = 0; i < 6; i++) {
-                delay(6);
-                play(f[i]);
-            }
-            nosound();
+            sound_bolt();
         }
         return;
     }
@@ -881,45 +969,10 @@ static void end_shot(void)
     shot_dir = 0;
 }
 
-/* UpdatePlayerShot (1054:45d3). The shot looks at back buffer 1 (the level's picture) half a
- * tile down from its top; when there's something there it looks the map cell up to decide. */
-static void update_player_shot(void)
+/* The shot has met something in the level's picture, in map cell `cell`: switches and levers
+ * flip, the turret's generator blows up, and the shot stops or flies on. */
+static void shot_hit(uint8_t *cell)
 {
-    if (K.fire && !shot_active && shots) {
-        shot_active = 1;
-        shot_dir = frame_first == 0x1B ? 2 : -2;
-        shot_col = (uint8_t)(shot_dir == -2 ? px : px + 2);
-        shot_row = (uint8_t)py;
-        shots--;
-        draw_shots(9, 0, shots);
-        static const int f[] = {900, 850, 800, 750, 800, 850};
-        for (int i = 0; i < 6; i++) {
-            delay(10);
-            play(f[i]);
-        }
-        nosound();
-    }
-    if (!shot_active)
-        return;
-    if (shot_dir == 2) {
-        smooth_id = 0x402;
-        blit_masked_buf2(tile(0x0B), shot_row, shot_col);
-    }
-    const long at = DS_BACK1 + (shot_row + 4) * CGA_STRIDE + shot_col + shot_dir;
-    const uint8_t a = ds_peek(at), b = ds_peek(at + 1);
-    shot_col = (uint8_t)(shot_col + shot_dir);
-    if (shot_col > 0x4E) {
-        end_shot();
-        return;
-    }
-    if (shot_dir == -2) {
-        smooth_id = 0x402;
-        blit_masked_buf2(tile(0x0B), shot_row, shot_col);
-    }
-    if (!a && !b)
-        return;
-
-    uint8_t *cell = &map()[(shot_row + 3) / 8 * LEVEL_COLS + shot_col / 4];
     switch (*cell) {
     /* the shot flies on through these */
     case 0x04: case 0x06: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0E:
@@ -960,6 +1013,41 @@ static void update_player_shot(void)
         return;
     }
     end_shot();
+}
+
+/* UpdatePlayerShot (1054:45d3). The shot looks at back buffer 1 (the level's picture) half a
+ * tile down from its top; when there's something there it looks the map cell up to decide. */
+static void update_player_shot(void)
+{
+    if (K.fire && !shot_active && shots) {
+        shot_active = 1;
+        shot_dir = frame_first == 0x1B ? 2 : -2;
+        shot_col = (uint8_t)(shot_dir == -2 ? px : px + 2);
+        shot_row = (uint8_t)py;
+        shots--;
+        draw_shots(9, 0, shots);
+        sound_shot();
+    }
+    if (!shot_active)
+        return;
+    if (shot_dir == 2) {
+        smooth_id = 0x402;
+        blit_masked_buf2(tile(0x0B), shot_row, shot_col);
+    }
+    const long at = DS_BACK1 + (shot_row + 4) * CGA_STRIDE + shot_col + shot_dir;
+    const uint8_t a = ds_peek(at), b = ds_peek(at + 1);
+    shot_col = (uint8_t)(shot_col + shot_dir);
+    if (shot_col > 0x4E) {
+        end_shot();
+        return;
+    }
+    if (shot_dir == -2) {
+        smooth_id = 0x402;
+        blit_masked_buf2(tile(0x0B), shot_row, shot_col);
+    }
+    if (!a && !b)
+        return;
+    shot_hit(&map()[(shot_row + 3) / 8 * LEVEL_COLS + shot_col / 4]);
 }
 
 /* Floor division by 2, as SAR does. */
@@ -1123,6 +1211,11 @@ static void check_level_exit(void)
 {
     uint8_t *cell = &map()[(py >> 3) * LEVEL_COLS + ((px + 2) >> 2)];
     const int b = *cell;
+    /* The original shows the rescue message on every frame the player is on its cell, but
+     * leaves it within a frame or two; modern steps are smaller, so it shows on entering. */
+    const int entered = !modern || cell - map() != m_exit_cell;
+    if (modern)
+        m_exit_cell = (int)(cell - map());
     if (b == 0x64) { /* the exit */
         level_changed = 1;
         draw_score((unsigned)level * 100 + 2000);
@@ -1162,7 +1255,7 @@ static void check_level_exit(void)
         flash(1);
         hide_blocks_5e();
         *cell = 0;
-    } else if (b == 0x81 || b == 0x82) {
+    } else if ((b == 0x81 || b == 0x82) && entered) {
         show_rescue_message();
     }
 }
@@ -1209,6 +1302,710 @@ static void cheat_level_skip(void)
         level--;
         level_changed = 1;
     }
+}
+
+/* ------------------------------------------------------------------ modern physics ---- */
+
+/* game.physics = modern (port enhancement). The original moves things a whole step per frame,
+ * 18.2 frames a second: 4 pixels across (a byte of video memory) and 2 down. Its collision
+ * tests read bytes of the frame being drawn. Here the same things move at the same speeds,
+ * but in pixels and fractions of a pixel, M_HZ fixed steps a second, testing the level's
+ * picture pixel by pixel with the original's test points. The drawing is separate: it
+ * happens as often as the display can show a new picture, between the last two steps.
+ *
+ * Speeds are in pixels per original frame (TICK_HZ a second); a step is M_TICK frames. Each
+ * thing keeps its position in floats; the original's byte columns and rows (px, py, the
+ * lists' col / row) are kept rounded from them, for the code shared with the original. */
+#define M_HZ 120.0
+#define TICK_HZ (1193182.0 / 65536.0)
+#define M_TICK ((float)(TICK_HZ / M_HZ))
+
+#define M_WALK (8.0f / 3)  /* 4 px on 2 frames of 3 */
+#define M_VPLAT 1.0f       /* 2 px every 2nd frame */
+#define M_HPLAT (4.0f / 3) /* 4 px every 3rd frame */
+#define M_DRIP 2.0f
+#define M_BOLT 4.0f
+#define M_SHOT 8.0f
+#define M_FALL 2.0f        /* boulders */
+#define M_JUMP_TOP 96.0f   /* the jump's own push ends after 96 frames (JumpT 32) */
+#define M_MAX_X (0x4C * 4)
+/* The original clamps py to 54h before its gravity, which then carries it up to 4 rows on:
+ * at the bottom of an open shaft the player stays at 54h-58h, and the exits there are in the
+ * map's last row, reached at 58h. */
+#define M_MAX_Y (0x58 * 2)
+#define M_STEP_UP 5        /* the most the feet climb in a step (the original: a row a frame) */
+
+typedef struct {
+    float x, y;   /* px; y in scanlines of the back buffers */
+    float ox, oy; /* at the step before, to draw in between */
+} mpos_t;
+
+static mpos_t m_pl, m_shot, m_bolt, m_drip;
+static mpos_t m_vp[MAX_LIST], m_hp[MAX_LIST], m_bo[MAX_LIST], m_wk[3][MAX_LIST];
+static float m_air;      /* frames since the feet left the ground: gravity's speed (FallV) */
+static float m_jump;     /* frames since the jump started: its push (JumpT) */
+static float m_walked;   /* px walked, for the walking frames */
+static float m_big;      /* frames left of the bigger hit box a jump starts with */
+static float m_tiles;    /* frames since the animated tiles last changed */
+static float m_anim[3];  /* frames, for the walkers' animation */
+static int m_wframe[3];
+static int m_support;    /* what the player stands on (an m_at result) */
+static int m_wall_l, m_wall_r, m_ceiling; /* the player's last wall and ceiling tests */
+
+/* Explosions: the original draws its 5 tiles over each other for one frame; here they play. */
+typedef struct { float x, y, t; } fx_t;
+static fx_t m_fx[8];
+static int m_nfx;
+
+static void m_explosion(float x, float y)
+{
+    sound_explosion();
+    if (m_nfx < (int)(sizeof m_fx / sizeof m_fx[0]))
+        m_fx[m_nfx++] = (fx_t){x, y, 0};
+}
+
+static int to_col(float x)
+{
+    return (int)floorf(x / 4 + 0.5f);
+}
+
+static int to_row(float y)
+{
+    return (int)floorf(y / 2 + 0.5f);
+}
+
+static void m_sync_player(void)
+{
+    px = to_col(m_pl.x);
+    py = to_row(m_pl.y);
+}
+
+/* The original's |a - b| < n tests, on byte columns (cols) and rows: the same threshold
+ * halfway between the distances it lets through and the first it doesn't. */
+static bool near(float dx, float dy, int cols, int rows)
+{
+    return fabsf(dx) < cols * 4 - 2 && fabsf(dy) < rows * 2 - 1;
+}
+
+/* ------------------------------------------- the world, pixel by pixel */
+
+enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLAT | W_BOULDER };
+#define HIT_BG 1
+#define HIT_VPLAT 0x100
+#define HIT_HPLAT 0x200
+#define HIT_BOULDER 0x300
+#define HIT_PLAYER 0x400
+static int m_self; /* the thing asking, which doesn't see itself */
+
+static bool tile_pixel(int n, int lx, int ly)
+{
+    const uint8_t *row = tile(n) + (ly & 1) * 0x40 + (ly >> 1) * 8;
+    return (row[2 * (lx >> 2) + 1] >> (6 - 2 * (lx & 3))) & 3;
+}
+
+static bool in_sprite(const mpos_t *p, int n, int x, int y)
+{
+    const int lx = x - (int)floorf(p->x), ly = y - (int)floorf(p->y);
+    return lx >= 0 && lx < 16 && ly >= 0 && ly < 16 && tile_pixel(n, lx, ly);
+}
+
+/* What is at pixel (x, y) of the playfield, of the kinds in `what`: 0 for nothing, else one
+ * of the HIT_ values (plus the thing's index). A pixel that isn't black is solid, as the
+ * original's bytes are; off the sides and below the level is wall. */
+static int m_at(int x, int y, int what)
+{
+    if (x < 0 || x >= CGA_W || y >= LEVEL_ROWS * 16)
+        return HIT_BG;
+    if (y < 0)
+        return 0;
+    if ((what & W_BG) && cga_get_in(back1, x, y))
+        return HIT_BG;
+    if (what & W_PLAT) {
+        for (int i = 0; i < lv.vplat.n; i++)
+            if (in_sprite(&m_vp[i], 0x04, x, y))
+                return HIT_VPLAT + i;
+        for (int i = 0; i < lv.hplat.n; i++)
+            if (in_sprite(&m_hp[i], 0x04, x, y))
+                return HIT_HPLAT + i;
+    }
+    if (what & W_BOULDER)
+        for (int i = 0; i < lv.boulders.n; i++)
+            if (HIT_BOULDER + i != m_self && in_sprite(&m_bo[i], 0x6E, x, y))
+                return HIT_BOULDER + i;
+    if (what & W_PLAYER) {
+        const int x0 = (int)floorf(m_pl.x), y0 = (int)floorf(m_pl.y);
+        if (x >= x0 + 4 && x < x0 + 12 && y >= y0 && y < y0 + 16)
+            return HIT_PLAYER;
+    }
+    return 0;
+}
+
+/* The first thing in the box from (x0, y0) to (x1, y1), corners included. */
+static int m_box(int x0, int y0, int x1, int y1, int what)
+{
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++) {
+            const int h = m_at(x, y, what);
+            if (h)
+                return h;
+        }
+    return 0;
+}
+
+/* One of the original's byte tests: anything in the 4 pixels from (x, y). */
+static int m_byte(int x, int y, int what)
+{
+    return m_box(x, y, x + 3, y, what);
+}
+
+/* ... and its "FFh" tests, the platforms' turning marks: 4 pixels of colour 3 in the level. */
+static bool m_ff(int x, int y)
+{
+    for (int i = 0; i < 4; i++)
+        if (x + i < 0 || x + i >= CGA_W || y < 0 || y >= PLAYFIELD_LINES || cga_get_in(back1, x + i, y) != 3)
+            return false;
+    return true;
+}
+
+/* The player's test points (BlitMasked_Buf2_Collide's), for the sprite at (x, y): the feet
+ * cover x+4..x+11, the ground is the scanline under them, the head's room the one above. */
+static int m_ground(int x, int y)
+{
+    return m_box(x + 4, y + 16, x + 11, y + 16, W_SOLID);
+}
+
+static int m_head(int x, int y)
+{
+    return m_box(x + 4, y - 1, x + 11, y - 1, W_SOLID);
+}
+
+/* ------------------------------------------- the player */
+
+/* Something the player stands on moved by (dx, dy): go with it, unless a wall or the ceiling
+ * is in the way. */
+static void m_carry(int id, float dx, float dy)
+{
+    if (!on_ground || m_support != id)
+        return;
+    if ((dx < 0 && !can_left) || (dx > 0 && !can_right))
+        dx = 0;
+    if (dy < 0 && m_ceiling)
+        dy = 0;
+    m_pl.x = fminf(fmaxf(m_pl.x + dx, 0), M_MAX_X);
+    m_pl.y += dy;
+}
+
+/* UpdateVPlatforms: state 1 up, 0 down, 2 stopped, turning at a mark or the top. */
+static void m_update_vplatforms(void)
+{
+    for (int i = 0; i < lv.vplat.n; i++) {
+        rec_t *r = &lv.vplat.r[i];
+        mpos_t *p = &m_vp[i];
+        const int x = (int)floorf(p->x), y = (int)floorf(p->y);
+        float dy = 0;
+        if (r->s == 1) {
+            if (m_ff(x, y - 28) || p->y < 16)
+                r->s = 0;
+            else
+                dy = -M_VPLAT * M_TICK;
+        } else if (r->s == 0) {
+            if (m_ff(x + 4, y + 22) || m_ff(x + 8, y + 22))
+                r->s = 1;
+            else
+                dy = M_VPLAT * M_TICK;
+        }
+        p->y += dy;
+        r->row = (uint8_t)to_row(p->y);
+        m_carry(HIT_VPLAT + i, 0, dy);
+    }
+}
+
+/* UpdateHPlatforms: state 1 left, 0 right, turning at a mark or the edge. */
+static void m_update_hplatforms(void)
+{
+    for (int i = 0; i < lv.hplat.n; i++) {
+        rec_t *r = &lv.hplat.r[i];
+        mpos_t *p = &m_hp[i];
+        const int x = (int)floorf(p->x), y = (int)floorf(p->y);
+        float dx = 0;
+        if (r->s == 1) {
+            if (m_ff(x - 4, y + 2) || p->x <= 0)
+                r->s = 0;
+            else
+                dx = -M_HPLAT * M_TICK;
+        } else if (r->s == 0) {
+            if (m_ff(x + 16, y + 2) || p->x > 0x4B * 4)
+                r->s = 1;
+            else
+                dx = M_HPLAT * M_TICK;
+        }
+        p->x += dx;
+        r->col = (uint8_t)to_col(p->x);
+        m_carry(HIT_HPLAT + i, dx, 0);
+    }
+}
+
+/* Walking into a boulder pushes it along, if nothing is on its other side. */
+static bool m_push(int dir, float dx)
+{
+    const int hit = dir < 0 ? m_wall_l : m_wall_r;
+    if (hit < HIT_BOULDER || hit >= HIT_BOULDER + lv.boulders.n)
+        return false;
+    mpos_t *p = &m_bo[hit - HIT_BOULDER];
+    const int x = (int)floorf(p->x), y = (int)floorf(p->y);
+    m_self = hit;
+    const bool blocked = dir < 0 ? p->x <= 0 || m_box(x - 1, y + 3, x - 1, y + 12, W_SOLID)
+                                 : p->x >= M_MAX_X || m_box(x + 16, y + 3, x + 16, y + 12, W_SOLID);
+    m_self = 0;
+    if (blocked)
+        return false;
+    p->x += dx;
+    play(1300);
+    nosound();
+    return true;
+}
+
+/* Move the player down (d > 0) or up, a scanline at a time: down stops on the ground, up at
+ * the ceiling, which ends the jump. */
+static void m_move_player_y(float d)
+{
+    const float to = m_pl.y + d;
+    const int x = (int)floorf(m_pl.x), end = (int)floorf(to);
+    for (int r = (int)floorf(m_pl.y); r < end; r++)
+        if (m_ground(x, r)) {
+            m_pl.y = (float)r;
+            return;
+        }
+    for (int r = (int)floorf(m_pl.y); r > end; r--)
+        if (m_head(x, r)) {
+            m_pl.y = (float)r;
+            jump_over = 1;
+            return;
+        }
+    m_pl.y = to;
+}
+
+/* UpdatePlayerShot: in front of the shot, half a tile down, the level's picture. */
+static void m_update_shot(void)
+{
+    if (K.fire && !shot_active && shots) {
+        shot_active = 1;
+        shot_dir = facing_left ? -2 : 2;
+        m_shot.x = m_shot.ox = facing_left ? m_pl.x : m_pl.x + 8;
+        m_shot.y = m_shot.oy = floorf(m_pl.y);
+        shots--;
+        draw_shots(9, 0, shots);
+        sound_shot();
+    }
+    if (!shot_active)
+        return;
+    /* the 8 pixels from the middle of the shot forwards, nearest first */
+    const int x = (int)floorf(m_shot.x), y = (int)m_shot.y;
+    int hit_x = -1;
+    for (int k = 0; k < 8 && hit_x < 0; k++) {
+        const int at = shot_dir > 0 ? x + 8 + k : x + 7 - k;
+        if (m_at(at, y + 8, W_BG))
+            hit_x = at;
+    }
+    m_shot.x += (shot_dir > 0 ? M_SHOT : -M_SHOT) * M_TICK;
+    shot_col = (uint8_t)to_col(m_shot.x);
+    shot_row = (uint8_t)to_row(m_shot.y);
+    if (m_shot.x < 0 || m_shot.x > 0x4E * 4) {
+        end_shot();
+        return;
+    }
+    if (hit_x >= 0 && hit_x < CGA_W)
+        shot_hit(&map()[(y / 2 + 3) / 8 * LEVEL_COLS + hit_x / 16]);
+}
+
+static bool lets_jump_on(int c) /* the specials a jump carries on through */
+{
+    return c == 0 || c == 0x16 || c == 0x17 || c == 0x0A || c == 0x09;
+}
+
+/* UpdatePlayer. */
+static void m_update_player(void)
+{
+    const int dir = K.left && !K.right ? -1 : K.right && !K.left ? 1 : 0;
+    if (dir) {
+        if ((dir < 0) != (facing_left != 0)) { /* turn (the original spends a frame on it) */
+            facing_left = dir < 0;
+            frame_first = facing_left ? 0x21 : 0x1B;
+            frame_end = facing_left ? 0x25 : 0x1F;
+            frame = frame_first - 1;
+            m_walked = 0;
+        }
+        const float dx = dir * M_WALK * M_TICK;
+        if ((dir < 0 ? can_left : can_right) || m_push(dir, dx)) {
+            m_pl.x = fminf(fmaxf(m_pl.x + dx, 0), M_MAX_X);
+            if (on_ground) {
+                m_walked += fabsf(dx);
+                frame = frame_first + (int)(m_walked / 4) % 4;
+            }
+        }
+    }
+    if (K.jump && !jump_over && can_jump && on_ground) {
+        on_ground = 0;
+        can_jump = 0;
+        m_big = 1;
+        m_jump = 0;
+        m_air = 0;
+        sound_jump();
+    }
+
+    m_update_vplatforms();
+    m_update_hplatforms();
+
+    bool pushing = false; /* the jump's push, which falls off as it goes */
+    if (!can_jump && !on_ground) {
+        frame = facing_left ? 0x25 : 0x1F;
+        m_sync_player();
+        const int c = find_special_at((uint8_t)py, (uint8_t)px);
+        touch_tile(c);
+        if (!m_ceiling && lets_jump_on(c) && !jump_over) {
+            m_jump += M_TICK;
+            if (m_jump >= M_JUMP_TOP) {
+                frame = frame_first;
+                jump_over = 1;
+            } else {
+                pushing = true;
+            }
+        } else {
+            jump_over = 1;
+        }
+    }
+    /* Rows per frame down. Gravity is FallV >> 1, FallV counting up a frame at a time to 8;
+     * the jump's push is (9 - JumpT) >> 1, JumpT counting up every 3 frames. These are the
+     * straight lines through the original's steps, which reach the same height (28 px). */
+    float v = 0;
+    if (!on_ground)
+        v += fminf(4, m_air / 2);
+    if (pushing)
+        v -= 13.0f / 3 - m_jump / 6;
+    m_move_player_y(v * 2 * M_TICK);
+    m_pl.y = fminf(fmaxf(m_pl.y, 0), M_MAX_Y);
+
+    m_update_shot();
+
+    int x = (int)floorf(m_pl.x), y = (int)floorf(m_pl.y);
+    m_wall_l = m_box(x + 3, y + 4, x + 3, y + 10, W_SOLID);
+    m_wall_r = m_box(x + 12, y + 4, x + 12, y + 10, W_SOLID);
+    m_ceiling = m_head(x, y);
+    m_sync_player();
+    if (!m_wall_l) {
+        can_left = 1;
+    } else {
+        const int c = find_special_at((uint8_t)py, (uint8_t)(px - 1));
+        touch_tile(c);
+        if (c == 0)
+            can_left = 0;
+    }
+    if (!m_wall_r) {
+        can_right = 1;
+    } else {
+        const int c = find_special_at((uint8_t)py, (uint8_t)(px + 1));
+        touch_tile(c);
+        if (c == 0)
+            can_right = 0;
+    }
+
+    int ground = m_ground(x, y);
+    if (!ground && on_ground && can_jump) /* walking down a slope or a step: keep to it */
+        for (int k = 1; k <= M_STEP_UP && !ground; k++)
+            if ((ground = m_ground(x, y + k)) != 0) {
+                y += k;
+                m_pl.y = (float)y;
+                m_sync_player();
+            }
+    if (!ground) { /* falling */
+        on_ground = 0;
+        m_air += M_TICK;
+        m_support = 0;
+    } else {
+        touch_tile(find_special_at((uint8_t)py, (uint8_t)px));
+        if (!on_ground) {
+            on_ground = 1;
+            can_jump = 1;
+        }
+        m_air = 0;
+        jump_over = 0;
+        m_jump = 0;
+        m_support = ground;
+    }
+    if (m_box(x + 4, y + 11, x + 11, y + 15, W_SOLID)) { /* feet in the floor: step up */
+        const int c = find_special_at((uint8_t)py, (uint8_t)px);
+        touch_tile(c);
+        if (!m_ceiling) {
+            for (int k = 0; c == 0 && k < M_STEP_UP && !m_head(x, y) &&
+                            m_box(x + 4, y + 11, x + 11, y + 15, W_SOLID); k++)
+                m_pl.y = (float)--y;
+            on_ground = 1;
+            can_jump = 1;
+            m_air = 0;
+            m_jump = 0;
+            m_support = m_ground(x, y);
+            m_sync_player();
+        }
+    }
+    /* Standing on a platform: take its fraction of a pixel, so the two move as one. */
+    if (on_ground && m_support >= HIT_VPLAT && m_support < HIT_BOULDER) {
+        const mpos_t *p = m_support < HIT_HPLAT ? &m_vp[m_support - HIT_VPLAT] : &m_hp[m_support - HIT_HPLAT];
+        m_pl.y = p->y + (float)(y - (int)floorf(p->y));
+        if (!dir)
+            m_pl.x = p->x + roundf(m_pl.x - p->x);
+    }
+}
+
+/* ------------------------------------------- everything else */
+
+/* UpdateEnemies49 / 4A / 4B. The tests are the original's bytes, on the level and the
+ * boulders; a turn takes the step, as the original's takes the frame. */
+static void m_update_walkers(int k)
+{
+    const walker_t *w = &walkers[k];
+    m_anim[k] += M_TICK;
+    m_wframe[k] = (int)(m_anim[k] / (float)w->tick_len) % 4;
+    for (int i = 0; i < w->list->n; i++) {
+        rec_t *r = &w->list->r[i];
+        mpos_t *p = &m_wk[k][i];
+        if (r->s == 2)
+            continue;
+        const int x = (int)floorf(p->x), y = (int)floorf(p->y), what = W_BG | W_BOULDER;
+        int probe_l, probe_r, wall_l, wall_r;
+        if (w->kind == 0x49) { /* the ceiling ahead; a wall ahead */
+            probe_l = m_byte(x - 4, y - 2, what);
+            probe_r = m_byte(x + 16, y - 2, what);
+            wall_l = m_byte(x - 4, y + 2, what);
+            wall_r = m_byte(x + 16, y + 2, what);
+        } else if (w->kind == 0x4A) { /* its own top row */
+            probe_l = m_byte(x, y + 2, what);
+            probe_r = m_byte(x + 12, y + 2, what);
+            wall_l = wall_r = 0;
+        } else { /* the floor under it; a wall ahead */
+            probe_l = m_byte(x, y + 16, what);
+            probe_r = m_byte(x + 12, y + 16, what);
+            wall_l = m_byte(x - 4, y, what);
+            wall_r = m_byte(x + 16, y, what);
+        }
+        const float dx = 4.0f / (float)w->tick_len * M_TICK;
+        if (r->s == 1) {
+            if (w->kind == 0x4A ? probe_l || p->x <= 0 : !probe_l || wall_l) {
+                r->s = 0;
+                continue;
+            }
+            p->x -= dx;
+        } else {
+            if (w->kind == 0x4A ? probe_r || p->x > 0x4B * 4 : !probe_r || wall_r) {
+                r->s = 1;
+                continue;
+            }
+            p->x += dx;
+        }
+        r->col = (uint8_t)to_col(p->x);
+        if (shot_active && near(p->x - m_shot.x, p->y - m_shot.y, w->shot_dx, w->shot_dy)) {
+            r->s = 2;
+            shot_active = 0;
+            m_explosion(p->x, p->y);
+            draw_score(w->points);
+        }
+        if (w->kind == 0x4B ? near(p->x - m_pl.x, p->y - m_pl.y, 2, 8)
+                            : near(p->x - m_pl.x, p->y - m_pl.y, 3, (m_big > 0 ? 5 : 0) + 8))
+            kill_player(0);
+    }
+}
+
+/* UpdateDrips. */
+static void m_update_drips(void)
+{
+    if (lv.drips.n == 0)
+        return;
+    if (!drip_active) {
+        const int which = plat_rand() % lv.drips.n;
+        const int off = plat_rand() % (lv.drips.r[which].s + 1);
+        drip_col = lv.drips.r[which].col + off;
+        drip_row = lv.drips.r[which].row;
+        m_drip.x = m_drip.ox = (float)(drip_col * 4);
+        m_drip.y = m_drip.oy = (float)(drip_row * 2);
+        drip_active = 1;
+        sound_drip();
+        return;
+    }
+    m_drip.y += M_DRIP * M_TICK;
+    drip_row = to_row(m_drip.y);
+    const int x = (int)floorf(m_drip.x), y = (int)floorf(m_drip.y);
+    if (near(m_drip.x - m_pl.x, m_drip.y + 2 - m_pl.y, 2, (m_big > 0 ? 5 : 0) + 8))
+        kill_player(0);
+    else if (m_box(x + 4, (y & ~1) + 16, x + 11, (y & ~1) + 16, W_BG | W_BOULDER)) /* as boulders */
+        drip_active = 0;
+}
+
+/* UpdateTurret: the bolt flies until its middle meets the level, an edge, or the player. */
+static void m_update_turret(void)
+{
+    if (!lv.has_turret)
+        return;
+    const float ty = (float)(lv.turret_row * 2);
+    if (!bolt_active) {
+        if (fabsf(ty - m_pl.y) < 7 * 2 - 1) {
+            bolt_dir = m_pl.x < (float)(lv.turret_col * 4) ? -1 : 1;
+            bolt_active = 1;
+            m_bolt.x = m_bolt.ox = (float)((lv.turret_col + bolt_dir * 3) * 4);
+            m_bolt.y = m_bolt.oy = ty;
+            sound_bolt();
+        }
+        return;
+    }
+    const int x = (int)floorf(m_bolt.x), y = (int)ty;
+    const int ahead = m_box(x + 4, y + 8, x + 11, y + 8, W_BG);
+    m_bolt.x += (float)bolt_dir * M_BOLT * M_TICK;
+    bolt_col = (uint8_t)to_col(m_bolt.x);
+    if (!ahead && m_bolt.x > 0 && m_bolt.x < 0x4E * 4) {
+        if (near(m_bolt.x - m_pl.x, ty - m_pl.y, 3, 4)) {
+            bolt_active = 0;
+            kill_player(0);
+        }
+    } else {
+        bolt_active = 0;
+    }
+}
+
+/* UpdateBoulders: fall, or slide off an edge (pushing is the player's, m_push). They land on
+ * the level, platforms, other boulders and the player, and stop shots and bolts. */
+static void m_update_boulders(void)
+{
+    for (int i = 0; i < lv.boulders.n; i++) {
+        rec_t *r = &lv.boulders.r[i];
+        mpos_t *p = &m_bo[i];
+        /* The original only ever tests the even scanline under a boulder (it moves 2 at a
+         * time), and levels count on that: boulders fall past letters and gems that a test
+         * of every scanline would catch them on. So between two even scanlines this tests the
+         * one it left. */
+        const int x = (int)floorf(p->x), y = ((int)floorf(p->y) & ~1) + 16;
+        m_self = HIT_BOULDER + i;
+        const int below_l = m_byte(x, y, W_SOLID | W_PLAYER), below_r = m_byte(x + 12, y, W_SOLID | W_PLAYER);
+        m_self = 0;
+        if (!below_l && !below_r) {
+            p->y += M_FALL * M_TICK;
+        } else if (below_l && !below_r && p->x <= 0x4B * 4) {
+            p->x += 2 * M_FALL * M_TICK;
+            p->y += M_FALL * M_TICK;
+        } else if (!below_l && below_r && p->x > 0) {
+            p->x -= 2 * M_FALL * M_TICK;
+            p->y += M_FALL * M_TICK;
+        }
+        r->col = (uint8_t)to_col(p->x);
+        r->row = (uint8_t)to_row(p->y);
+        if (shot_active && near(p->x - m_shot.x, p->y - m_shot.y, 4, 8))
+            shot_active = 0;
+        if (bolt_active && near(p->x - m_bolt.x, p->y - m_bolt.y, 4, 8))
+            bolt_active = 0;
+    }
+}
+
+static void m_start_level(void)
+{
+    m_pl.x = m_pl.ox = (float)(px * 4);
+    m_pl.y = m_pl.oy = (float)(py * 2);
+    const struct { list_t *l; mpos_t *p; } lists[] = {
+        {&lv.vplat, m_vp}, {&lv.hplat, m_hp}, {&lv.boulders, m_bo},
+        {&lv.enemy49, m_wk[0]}, {&lv.enemy4a, m_wk[1]}, {&lv.enemy4b, m_wk[2]},
+    };
+    for (size_t k = 0; k < sizeof lists / sizeof lists[0]; k++)
+        for (int i = 0; i < lists[k].l->n; i++) {
+            mpos_t *p = &lists[k].p[i];
+            p->x = p->ox = (float)(lists[k].l->r[i].col * 4);
+            p->y = p->oy = (float)(lists[k].l->r[i].row * 2);
+        }
+    m_air = m_jump = m_big = m_tiles = 0;
+    m_support = m_wall_l = m_wall_r = m_ceiling = 0;
+    m_nfx = 0;
+    m_exit_cell = -1;
+}
+
+/* One step: the original's frame (frame_update), in the same order. Returns 1 if the game
+ * ended. */
+static int m_step(void)
+{
+    mpos_t *const all[] = {&m_pl, &m_shot, &m_bolt, &m_drip};
+    for (size_t i = 0; i < sizeof all / sizeof all[0]; i++) {
+        all[i]->ox = all[i]->x;
+        all[i]->oy = all[i]->y;
+    }
+    mpos_t *const lists[] = {m_vp, m_hp, m_bo, m_wk[0], m_wk[1], m_wk[2]};
+    for (size_t k = 0; k < sizeof lists / sizeof lists[0]; k++)
+        for (int i = 0; i < MAX_LIST; i++) {
+            lists[k][i].ox = lists[k][i].x;
+            lists[k][i].oy = lists[k][i].y;
+        }
+
+    if ((m_tiles += M_TICK) >= 1) {
+        m_tiles -= 1;
+        level_animate_tiles(&lv, gd);
+    }
+    for (int k = 0; k < 3; k++)
+        m_update_walkers(k);
+    m_update_drips();
+    if (m_big > 0)
+        m_big -= M_TICK;
+    m_update_player();
+    if (game_over)
+        return 1;
+    m_update_boulders();
+    m_update_turret();
+    int n = 0;
+    for (int i = 0; i < m_nfx; i++)
+        if ((m_fx[i].t += M_TICK) < 5)
+            m_fx[n++] = m_fx[i];
+    m_nfx = n;
+    m_sync_player();
+    check_level_exit();
+    return 0;
+}
+
+/* Draw a thing `a` of the way from its last step to this one (straight there after a jump
+ * across the screen, such as a restart). */
+static void m_draw(uint8_t *buf, int n, const mpos_t *p, float a)
+{
+    float x = p->x, y = p->y;
+    if (fabsf(p->x - p->ox) < 16 && fabsf(p->y - p->oy) < 16) {
+        x = p->ox + (p->x - p->ox) * a;
+        y = p->oy + (p->y - p->oy) * a;
+    }
+    blit_masked_px(buf, tile(n), (int)floorf(x), (int)floorf(y));
+}
+
+/* The frame, in the original's drawing order, into the playfield of video memory. */
+static void m_render(float a)
+{
+    static uint8_t buf[CGA_VRAM_SIZE];
+    memcpy(buf, back1, sizeof buf);
+    for (int k = 0; k < 3; k++)
+        for (int i = 0; i < walkers[k].list->n; i++)
+            if (walkers[k].list->r[i].s != 2)
+                m_draw(buf, walkers[k].first_tile + m_wframe[k], &m_wk[k][i], a);
+    if (drip_active)
+        m_draw(buf, 0x26, &m_drip, a);
+    for (int i = 0; i < lv.vplat.n; i++)
+        m_draw(buf, 0x04, &m_vp[i], a);
+    for (int i = 0; i < lv.hplat.n; i++)
+        m_draw(buf, 0x04, &m_hp[i], a);
+    if (shot_active)
+        m_draw(buf, 0x0B, &m_shot, a);
+    m_draw(buf, frame, &m_pl, a);
+    for (int i = 0; i < lv.special.n; i++) {
+        const rec_t *r = &lv.special.r[i];
+        if (r->s > 0x73 && r->s < 0x78)
+            blit_masked_px(buf, tile(r->s), r->col * 4, r->row * 2);
+    }
+    for (int i = 0; i < lv.boulders.n; i++)
+        m_draw(buf, 0x6E, &m_bo[i], a);
+    if (bolt_active)
+        m_draw(buf, 0x2A, &m_bolt, a);
+    for (int i = 0; i < m_nfx; i++)
+        blit_masked_px(buf, tile(0x2A + (int)m_fx[i].t), (int)floorf(m_fx[i].x), (int)floorf(m_fx[i].y));
+    memcpy(cga_vram + 0x140, buf, 0x1E78);
+    memcpy(cga_vram + CGA_BANK + 0x140, buf + CGA_BANK, 0x1E78);
+    plat_dirty();
 }
 
 /* ------------------------------------------------------------------ main's loop ---- */
@@ -1417,6 +2214,85 @@ static const char *script_step(const char *p, int *frames)
     return p;
 }
 
+/* A script's frame being counted out in steps; kept across restarts, or dying at every step
+ * would never finish one. */
+static float script_frames;
+
+/* game.physics = modern: a level's frame loop, M_HZ fixed steps a second whatever the
+ * display does, drawn whenever the display can show a new picture. A script's frame counts
+ * stay the original's frames (several steps each). Returns 1 to quit, 0 when the level
+ * changes. */
+static int run_level_modern(const char *script, const char **p, int *frames, int *total, int *deaths)
+{
+    m_start_level();
+    double last = plat_seconds(), acc = 0, next_frame = 0;
+    int last_sc = SC;
+    for (;;) {
+        if (plat_quitting())
+            return 1;
+        int steps = 1;
+        if (!script) {
+            const double now = plat_seconds();
+            double dt = now - last;
+            last = now;
+            if (dt > 0.1) /* the window was held still: carry on rather than catch up */
+                dt = 1 / M_HZ;
+            acc += dt;
+            steps = (int)(acc * M_HZ);
+            acc -= steps / M_HZ;
+        }
+        for (int i = 0; i < steps; i++) {
+            if (script) {
+                while (*frames == 0 && *p)
+                    *p = script_step(*p, frames);
+                if (!*p && *frames == 0) {
+                    m_render(1); /* for --screenshot */
+                    return 1;
+                }
+            }
+            plat_frame_input_begin();
+            m_enter = SC == ENTER && last_sc != ENTER;
+            last_sc = SC;
+            const int k = frame_keys();
+            if (k == 1)
+                return 1;
+            const double t0 = plat_seconds();
+            if (k == 0 && m_step())
+                return 1;
+            plat_frame_input_end();
+            if (script && (script_frames += M_TICK) >= 1) {
+                script_frames -= 1;
+                (*frames)--;
+                (*total)++;
+            }
+            if (died) {
+                died = 0;
+                (*deaths)++;
+                flash(4); /* FlashBackground */
+                restart_level();
+            }
+            cheat_level_skip();
+            if (level_changed)
+                return 0;
+            if (!script && plat_seconds() - t0 > 0.05) { /* a door opening, a message: no catching up */
+                last = plat_seconds();
+                acc = 0;
+                break;
+            }
+        }
+        if (script)
+            continue;
+        const double now = plat_seconds(), period = 1.0 / plat_refresh_hz();
+        if (now >= next_frame) {
+            m_render((float)(acc * M_HZ));
+            next_frame = now - next_frame < period ? next_frame + period : now + period;
+            plat_poll();
+        } else {
+            plat_idle();
+        }
+    }
+}
+
 /* The level start and frame loop (1054:7c1a-806e). With a script, the keys come from it
  * instead of the keyboard and frames don't wait for the timer. */
 static void run(gamedata_t *g, int first_level, int start_shots, const char *script)
@@ -1424,6 +2300,8 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
     init(g, first_level, start_shots);
     plat_isr_installed = !script;
     scripted = script != NULL;
+    modern = settings.physics == PHYSICS_MODERN;
+    script_frames = 0;
     unsigned last = plat_ticks();
     int frames = 0, total = 0, deaths = 0, scene_bad = 0;
     const char *p = script;
@@ -1431,6 +2309,11 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
         if (level >= LEVELS) /* after the last level: the original draws "LEVEL 21" first */
             break;
         start_level();
+        if (modern) {
+            if (run_level_modern(script, &p, &frames, &total, &deaths))
+                goto quit;
+            continue;
+        }
         while (!plat_quitting()) {
             if (script) {
                 while (frames == 0 && p)

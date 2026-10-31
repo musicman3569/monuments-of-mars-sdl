@@ -224,14 +224,32 @@ static void on_key(const SDL_KeyboardEvent *e)
     }
 }
 
+/* plat_sfx_begin / end: the effect being written down, and the one playing (under the audio
+ * lock). at is in samples from the effect's start; hz 0 is quiet. */
+#define AUDIO_HZ 44100
+#define MAX_SFX 512
+typedef struct { int at, hz; } tone_t;
+static tone_t sfx_rec[MAX_SFX], sfx_play[MAX_SFX];
+static int n_rec, rec_at, n_play, play_next, play_pos;
+static bool recording;
+
 static void audio_callback(void *userdata, Uint8 *stream, int len)
 {
     static double phase;
     (void)userdata;
     Sint16 *out = (Sint16 *)stream;
     const int n = len / (int)sizeof(Sint16);
-    const int hz = SDL_AtomicGet(&speaker_hz);
+    int hz = SDL_AtomicGet(&speaker_hz);
     for (int i = 0; i < n; i++) {
+        if (n_play) { /* a sound effect: its tones take over the speaker until the last one */
+            while (play_next < n_play && sfx_play[play_next].at <= play_pos)
+                hz = sfx_play[play_next++].hz;
+            play_pos++;
+            if (play_next == n_play) {
+                SDL_AtomicSet(&speaker_hz, hz);
+                n_play = 0;
+            }
+        }
         if (hz <= 0) {
             out[i] = 0;
             continue;
@@ -366,7 +384,9 @@ static bool present(void)
 void plat_set_title(void)
 {
     if (win)
-        SDL_SetWindowTitle(win, settings.smooth ? "Monuments of Mars (smooth)" : "Monuments of Mars");
+        SDL_SetWindowTitle(win, settings.physics == PHYSICS_MODERN ? "Monuments of Mars (modern)"
+                                : settings.smooth                  ? "Monuments of Mars (smooth)"
+                                                                   : "Monuments of Mars");
 }
 
 void plat_poll(void)
@@ -453,6 +473,10 @@ int plat_getch(void)
 
 void plat_delay(int ms)
 {
+    if (recording) { /* a sound effect's pause between tones */
+        rec_at += AUDIO_HZ * (ms > 0 ? ms : 0) / 1000;
+        return;
+    }
     timer_init();
     const Uint64 until = SDL_GetPerformanceCounter() + perf_freq * (Uint64)(ms > 0 ? ms : 0) / 1000;
     do {
@@ -484,19 +508,67 @@ unsigned plat_ticks(void)
     return (unsigned)((SDL_GetPerformanceCounter() - start_counter) * 1193182 / 65536 / perf_freq);
 }
 
+static void record(int hz)
+{
+    if (n_rec < MAX_SFX)
+        sfx_rec[n_rec++] = (tone_t){rec_at, hz};
+}
+
 void plat_sound(int hz)
 {
     /* The game uses sound(7FFFh) as "quiet": 33 kHz, which a PC speaker can't reproduce but a
      * 44.1 kHz square wave would alias into an audible whine. */
     if (hz > 20000)
-        SDL_AtomicSet(&speaker_hz, 0);
-    else if (hz > 18) /* the PIT divisor can't go lower (Turbo C sound() computes 1193180 / hz) */
+        hz = 0;
+    else if (hz <= 18) /* the PIT divisor can't go lower (Turbo C sound() computes 1193180 / hz) */
+        return;
+    if (recording)
+        record(hz);
+    else
         SDL_AtomicSet(&speaker_hz, hz);
 }
 
 void plat_nosound(void)
 {
-    SDL_AtomicSet(&speaker_hz, 0);
+    if (recording)
+        record(0);
+    else
+        SDL_AtomicSet(&speaker_hz, 0);
+}
+
+void plat_sfx_begin(void)
+{
+    recording = true;
+    n_rec = rec_at = 0;
+}
+
+void plat_sfx_end(void)
+{
+    recording = false;
+    if (!audio || !n_rec)
+        return;
+    SDL_LockAudioDevice(audio);
+    memcpy(sfx_play, sfx_rec, sizeof sfx_rec[0] * (size_t)n_rec);
+    n_play = n_rec;
+    play_next = play_pos = 0;
+    SDL_UnlockAudioDevice(audio);
+}
+
+double plat_seconds(void)
+{
+    timer_init();
+    return (double)(SDL_GetPerformanceCounter() - start_counter) / (double)perf_freq;
+}
+
+int plat_refresh_hz(void)
+{
+    return refresh_hz;
+}
+
+void plat_idle(void)
+{
+    plat_poll();
+    SDL_Delay(1);
 }
 
 int plat_screenshot(const char *path)

@@ -1,6 +1,6 @@
 /* Monuments of Mars port: entry point.
  *
- *   mars [MARSn.EXE] [--classic | --enhanced] [--set section.key=value] [--config FILE]
+ *   mars [MARSn.EXE] [--classic | --enhanced | --modern] [--set section.key=value] [--config FILE]
  *        [--print-settings] [--level N] [--palette 0|1] [--bright]
  *        [--screenshot out.png] [--script KEYS] [--show SCREEN]
  *
@@ -54,13 +54,13 @@ static int parse_args(int argc, char **argv, options_t *o)
     o->preset = -1;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if (!strcmp(a, "--classic") || !strcmp(a, "--enhanced"))
+        if (!strcmp(a, "--classic") || !strcmp(a, "--enhanced") || !strcmp(a, "--modern"))
             o->preset = settings_preset_by_name(a + 2);
         else if (!strcmp(a, "--set") && i + 1 < argc) {
             const char *set = argv[++i];
             if (!strncmp(set, "game.preset=", 12)) { /* a preset, not just the field */
                 if ((o->preset = settings_preset_by_name(set + 12)) < 0) {
-                    fprintf(stderr, "mars: game.preset must be classic or enhanced\n");
+                    fprintf(stderr, "mars: game.preset must be classic, enhanced or modern\n");
                     return -1;
                 }
             } else if (o->n_sets < (int)(sizeof o->sets / sizeof o->sets[0])) {
@@ -83,7 +83,7 @@ static int parse_args(int argc, char **argv, options_t *o)
         else if (!strcmp(a, "--bright"))
             o->bright = 1;
         else if (a[0] == '-') {
-            fprintf(stderr, "usage: mars [MARSn.EXE] [--classic | --enhanced] [--set section.key=value] "
+            fprintf(stderr, "usage: mars [MARSn.EXE] [--classic | --enhanced | --modern] [--set section.key=value] "
                             "[--config FILE] [--print-settings] [--level N] [--palette 0|1] [--bright] "
                             "[--screenshot out.png] [--script KEYS] [--show SCREEN]\n");
             return -1;
@@ -118,7 +118,7 @@ static int load_settings(const options_t *o)
     int preset = o->preset;
     for (int i = 0; i < n && preset < 0; i++)
         if (!strcmp(pairs[i].key, "game.preset") && (preset = settings_preset_by_name(pairs[i].value)) < 0)
-            fprintf(stderr, "mars: %s:%d: game.preset must be classic or enhanced\n", path, pairs[i].line);
+            fprintf(stderr, "mars: %s:%d: game.preset must be classic, enhanced or modern\n", path, pairs[i].line);
     settings_reset(preset < 0 ? PRESET_CLASSIC : (preset_t)preset);
 
     char err[160];
