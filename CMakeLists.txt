@@ -9,6 +9,7 @@ find_package(SDL2 REQUIRED CONFIG)
 add_executable(mars
     src/main.c
     src/platform.c
+    src/gamepad.c
     src/cga.c
     src/gfx.c
     src/text.c

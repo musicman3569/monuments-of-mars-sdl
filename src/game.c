@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "cga.h"
+#include "gamepad.h"
 #include "gfx.h"
 #include "hiscore.h"
 #include "level.h"
@@ -1261,13 +1262,19 @@ static int ask_yes_no(const char *what)
     draw_text(3, "?", 14, 0x17);
     if (scripted)
         return 1;
+    int yes = 0;
+    pad_set_yes_no(true);
     for (;;) {
-        if (SC == 0x15)
-            return 1;
+        if (SC == 0x15) {
+            yes = 1;
+            break;
+        }
         if (SC == 0x31 || plat_quitting())
-            return 0;
+            break;
         delay(1);
     }
+    pad_set_yes_no(false);
+    return yes;
 }
 
 /* The keys main handles at the top of each frame. Returns 1 to quit the game, 2 to skip the
@@ -1279,8 +1286,10 @@ static int frame_keys(void)
         banner(1, 10, box, 4);
         draw_text(2, "  PAUSED  ", 11, 0x0F);
         draw_text(2, "QUIT (Y/N)", 12, 0x0F);
+        pad_set_yes_no(true);
         for (;;) {
             if (SC == 0x15 || plat_quitting()) {
+                pad_set_yes_no(false);
                 nosound();
                 return 1;
             }
@@ -1288,6 +1297,7 @@ static int frame_keys(void)
                 break;
             delay(1);
         }
+        pad_set_yes_no(false);
     }
     if (SC == 0x1F && ask_yes_no("  SAVING..  ")) /* S */
         save_game();

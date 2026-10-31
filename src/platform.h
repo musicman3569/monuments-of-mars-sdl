@@ -23,6 +23,11 @@ typedef struct {
 extern isr_keys_t isr_keys;
 extern bool plat_isr_installed; /* the game's INT 9 handler is in place (else the BIOS one) */
 
+/* For gamepad.c, which presses keys for the controller: a make or break code (PC/XT set 1)
+ * through the game's ISR, and a character (or 0, scancode) into the BIOS buffer. */
+void plat_isr_key(int code);
+void plat_push_key(int c);
+
 int plat_init(const char *title, char *err, size_t errlen);
 void plat_shutdown(void);
 

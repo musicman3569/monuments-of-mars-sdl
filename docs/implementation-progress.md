@@ -47,6 +47,13 @@ Shift fires), Enter uses switches / levers / terminals, Q or Esc then Y quits, S
 and restore, F1 sound, F5 pause, F6 give up, Caps Lock + PgDn / ` skips levels and Caps Lock +
 `>` in the menu starts with 20 shots (the game's cheats). F12 saves `shotNNN.png`.
 
+Game controllers (port extra, `gamepad.c`; Xbox names): left stick / d-pad walk, A jumps,
+X fires, B or Y use (Enter), Start pauses (F5), Back quits (Esc), LB / RB save / restore
+(S / R); at a Y/N question A / Start = Y, B / Back = N; in the menus and text screens A /
+Start = Enter (the main menu's Enter plays) and B / Back = Esc. The other menu choices, the
+high-score name and the cheats need the keyboard. A `gamecontrollerdb.txt` next to mars.exe
+adds controller mappings.
+
 `--script` (port extra, for testing) plays without a window and without waiting for the timer,
 holding the keys of each token for its frame count (`l r j f e` = left, right, jump, fire,
 Enter; S / R = save / restore, answered Y; "40" = 40 frames of nothing), then prints the
@@ -89,11 +96,21 @@ it with Esc.
   - `hiscore` is Load / Save / Show / CheckHighScore and InputName.
   - `game` also has SaveGame / RestoreGame (S / R) and calls CheckHighScore at the end.
   - `main` is main's flow: title, then the menu loop (menu, game, high score).
+  - `gamepad` (port extra; the original is keyboard-only) turns SDL game-controller buttons
+    into key presses: in game make / break codes through the copy of the keyboard ISR (A and
+    X press the configured jump / fire keys, so the KBD setup still applies), outside it
+    characters in the BIOS buffer. Each button releases the code it pressed, and game.c
+    flags the Y/N questions (`pad_set_yes_no`) so A / B answer them. Hotplugging works.
 - Checked with `--script`: walking over slopes, falling, the level 1 exit (-> level 2, +2000),
   dying and restarting, shooting a robot (+500), picking up +3 shots and a gem; all 20 MARS1
   levels and levels of MARS2-4 run 150 frames without trouble; save / restore round trip.
 - Checked with a throwaway harness: every transition type and variant the game uses ends on
   exactly the picture (CF1 and CF2); mid-transition frames match the decoded patterns.
+- Game controllers: a throwaway harness driving `pad_apply` checked every mapping in each
+  mode (menu, game, Y/N), releases across a mode change, a held button / stick when a game
+  starts, an empty KBD setup; the scripted run is unchanged; SDL sees the user's Xbox One
+  controller as a game controller; the user played with it by hand. (`--script` bypasses
+  the ISR, so it can't exercise the pad.)
 - Checked with `--show`: every menu screen in all four volumes (incl. MARS4's moved
   BlitTile_Screen and its built-in high-score table). With throwaway harnesses: high-score
   entry (typing, Backspace, '?', the file written back with CR LF), the key config screen.

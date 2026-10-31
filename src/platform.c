@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cga.h"
+#include "gamepad.h"
 
 /* The four configurable keys start at 0; keyconfig_apply sets them. */
 isr_keys_t isr_keys;
@@ -33,7 +34,7 @@ static void timer_init(void)
 static int keybuf[64];
 static int key_head, key_tail;
 
-static void push_key(int c)
+void plat_push_key(int c)
 {
     const int next = (key_tail + 1) % 64;
     if (next != key_head) {
@@ -81,7 +82,7 @@ static int xt_scancode(SDL_Scancode s)
 }
 
 /* The game's INT 9 handler, 1054:0499. */
-static void keyboard_isr(int code)
+void plat_isr_key(int code)
 {
     isr_keys_t *k = &isr_keys;
     k->scancode = code;
@@ -109,11 +110,11 @@ static void on_key(const SDL_KeyboardEvent *e)
         return;
     if (e->type == SDL_KEYUP) {
         if (plat_isr_installed)
-            keyboard_isr(xt | 0x80);
+            plat_isr_key(xt | 0x80);
         return;
     }
     if (plat_isr_installed)
-        keyboard_isr(xt);
+        plat_isr_key(xt);
     /* The game's ISR doesn't chain to the BIOS, so the buffer only fills while it's out. */
     if (plat_isr_installed)
         return;
@@ -128,16 +129,16 @@ static void on_key(const SDL_KeyboardEvent *e)
             c -= 32;
         else if (shift && k)
             c = shifted[k - plain];
-        push_key(c);
+        plat_push_key(c);
     } else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER) {
-        push_key('\r');
+        plat_push_key('\r');
     } else if (sym == SDLK_ESCAPE) {
-        push_key(27);
+        plat_push_key(27);
     } else if (sym == SDLK_BACKSPACE) {
-        push_key(8);
+        plat_push_key(8);
     } else {
-        push_key(0);
-        push_key(xt);
+        plat_push_key(0);
+        plat_push_key(xt);
     }
 }
 
@@ -166,6 +167,7 @@ int plat_init(const char *title, char *err, size_t errlen)
         snprintf(err, errlen, "SDL_Init: %s", SDL_GetError());
         return -1;
     }
+    pad_init();
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 600,
                            SDL_WINDOW_RESIZABLE);
@@ -230,7 +232,10 @@ void plat_poll(void)
             on_key(&e.key);
         else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_EXPOSED)
             dirty = true;
+        else
+            pad_event(&e);
     }
+    pad_update();
     /* The game draws straight into video memory, so redraw on every poll at most at 70 Hz. */
     static Uint64 last;
     const Uint64 now = SDL_GetPerformanceCounter();

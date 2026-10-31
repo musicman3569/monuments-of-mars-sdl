@@ -258,6 +258,10 @@ jump or fire key at all). The menu loop zeroes the four keys before MainMenu rel
 
 Switches, levers and terminals use **Enter** (scancode 1C) while standing on them.
 
+There is no joystick support in the original. The port's game-controller support
+(`src/gamepad.h`) works by pressing keys: scancodes through the ISR above in game, so it
+behaves exactly like the keyboard, including a held button's code staying in [C8AA].
+
 ## Player (UpdatePlayer, 1054:3d43)
 
 Units: x is a byte column (4 px, 0..4C), y is a scanline pair (2 px, 0..54).
