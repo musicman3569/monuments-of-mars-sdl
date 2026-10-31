@@ -7,6 +7,8 @@
 
 #include "cga.h"
 #include "gamepad.h"
+#include "settings.h"
+#include "smooth.h"
 
 /* The four configurable keys start at 0; keyconfig_apply sets them. */
 isr_keys_t isr_keys;
@@ -20,6 +22,7 @@ static SDL_atomic_t speaker_hz;
 static bool quitting, dirty = true;
 static Uint64 start_counter, perf_freq;
 static int shot_no;
+static int refresh_hz = 60; /* the display's, for smooth frames */
 
 /* The clock also works without plat_init (--screenshot / --script run without a window). */
 static void timer_init(void)
@@ -81,8 +84,80 @@ static int xt_scancode(SDL_Scancode s)
     return 0;
 }
 
-/* The game's INT 9 handler, 1054:0499. */
+/* input.quick_taps: the four held flags (jump, fire, left, right) and Enter, as seen since the
+ * last frame started (pressed; changed at all) and what plat_frame_input_begin made up: for
+ * how many more frames a tapped key stays held. Jump stays 2: UpdatePlayer ignores walking
+ * and jumping on every third frame (the walk's pace), and a jump can't start twice. Fire stays
+ * 1, or a shot that hits a wall at once could be followed by a second. */
+static bool tapped[4], touched[4], forced[4];
+static int hold_left[4];
+static const int hold_frames[4] = {2, 1, 1, 1};
+static bool enter_tapped, sc_touched, enter_forced;
+
+static bool *held_flag(int i)
+{
+    bool *const f[4] = {&isr_keys.jump, &isr_keys.fire, &isr_keys.left, &isr_keys.right};
+    return f[i];
+}
+
+static void keyboard_isr(int code);
+
 void plat_isr_key(int code)
+{
+    bool before[4];
+    for (int i = 0; i < 4; i++)
+        before[i] = *held_flag(i);
+    keyboard_isr(code);
+    for (int i = 0; i < 4; i++)
+        if (*held_flag(i) != before[i]) {
+            touched[i] = true;
+            tapped[i] |= *held_flag(i);
+        }
+    sc_touched = true;
+    if (code == 0x1C)
+        enter_tapped = true;
+}
+
+void plat_frame_input_begin(void)
+{
+    const bool on = settings.quick_taps && plat_isr_installed;
+    for (int i = 0; i < 4; i++) {
+        if (on && tapped[i] && !*held_flag(i))
+            hold_left[i] = hold_frames[i];
+        forced[i] = on && hold_left[i] > 0 && !*held_flag(i);
+        if (forced[i]) {
+            *held_flag(i) = true;
+            hold_left[i]--;
+        } else {
+            hold_left[i] = 0;
+        }
+        tapped[i] = touched[i] = false;
+    }
+    /* Only Enter: the frame's other keys (F5's pause, the Y/N questions) wait for a key to
+     * change, which a made-up press would confuse. */
+    enter_forced = on && enter_tapped && isr_keys.scancode == 0x9C;
+    if (enter_forced)
+        isr_keys.scancode = 0x1C;
+    enter_tapped = sc_touched = false;
+}
+
+void plat_frame_input_end(void)
+{
+    for (int i = 0; i < 4; i++) {
+        if (forced[i] && !touched[i])
+            *held_flag(i) = false;
+        if (touched[i]) /* pressed or let go meanwhile: the keyboard has it again */
+            hold_left[i] = 0;
+    }
+    if (enter_forced && !sc_touched)
+        isr_keys.scancode = 0x9C;
+    for (int i = 0; i < 4; i++)
+        forced[i] = false;
+    enter_forced = false;
+}
+
+/* The game's INT 9 handler, 1054:0499. */
+static void keyboard_isr(int code)
 {
     isr_keys_t *k = &isr_keys;
     k->scancode = code;
@@ -104,6 +179,13 @@ static void on_key(const SDL_KeyboardEvent *e)
         snprintf(path, sizeof path, "shot%03d.png", ++shot_no);
         if (plat_screenshot(path) == 0)
             printf("wrote %s\n", path);
+        return;
+    }
+    if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_F4 && !e->repeat) {
+        settings.smooth = !settings.smooth;
+        printf("smooth movement %s\n", settings.smooth ? "on" : "off");
+        plat_set_title();
+        dirty = true;
         return;
     }
     if (!xt)
@@ -171,7 +253,13 @@ int plat_init(const char *title, char *err, size_t errlen)
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 600,
                            SDL_WINDOW_RESIZABLE);
-    ren = win ? SDL_CreateRenderer(win, -1, SDL_RENDERER_PRESENTVSYNC) : NULL;
+    /* No vsync: waiting for it inside the game's own delay() calls (its sound effects) would
+     * stretch them. plat_poll paces the redraws instead; on Windows the compositor keeps a
+     * window tear-free. */
+    ren = win ? SDL_CreateRenderer(win, -1, 0) : NULL;
+    SDL_DisplayMode mode;
+    if (win && SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(win), &mode) == 0 && mode.refresh_rate > 0)
+        refresh_hz = mode.refresh_rate < 240 ? mode.refresh_rate : 240;
     tex = ren ? SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, CGA_W, CGA_H)
               : NULL;
     if (!tex) {
@@ -179,6 +267,7 @@ int plat_init(const char *title, char *err, size_t errlen)
         return -1;
     }
     SDL_RenderSetLogicalSize(ren, CGA_W, CGA_H);
+    plat_set_title();
 
     SDL_AudioSpec want = {0}, have;
     want.freq = 44100;
@@ -209,17 +298,75 @@ void plat_dirty(void)
     dirty = true;
 }
 
-static void present(void)
+/* display.smooth: the moving tiles as textures, made when first drawn in these colours. */
+#define MAX_TILE_TEX 160
+static struct { const uint8_t *tile; uint64_t cut; SDL_Texture *tex; } tile_tex[MAX_TILE_TEX];
+static int n_tile_tex;
+static rgb_t tile_tex_colors[4];
+
+static SDL_Texture *texture_of(const uint8_t *tile, uint64_t cut, const rgb_t *pal)
 {
+    if (memcmp(pal, tile_tex_colors, sizeof tile_tex_colors) != 0 || n_tile_tex == MAX_TILE_TEX) {
+        for (int i = 0; i < n_tile_tex; i++)
+            SDL_DestroyTexture(tile_tex[i].tex);
+        n_tile_tex = 0;
+        memcpy(tile_tex_colors, pal, sizeof tile_tex_colors);
+    }
+    for (int i = 0; i < n_tile_tex; i++)
+        if (tile_tex[i].tile == tile && tile_tex[i].cut == cut)
+            return tile_tex[i].tex;
+    SDL_Texture *t = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, 16, 16);
+    if (!t)
+        return NULL;
+    uint32_t px[16 * 16];
+    smooth_tile_argb(tile, cut, pal, px);
+    SDL_UpdateTexture(t, NULL, px, 16 * 4);
+    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+    tile_tex[n_tile_tex].tile = tile;
+    tile_tex[n_tile_tex].cut = cut;
+    tile_tex[n_tile_tex++].tex = t;
+    return t;
+}
+
+/* Draw the window. Returns true if it showed a smooth frame (which changes on its own). */
+static bool present(void)
+{
+    static uint8_t vram[CGA_VRAM_SIZE];
+    const smooth_sprite_t *spr = NULL;
+    int n = 0;
+    const double now = (double)(SDL_GetPerformanceCounter() - start_counter) / (double)perf_freq;
+    const bool smooth = settings.smooth && plat_isr_installed && smooth_frame(now, vram, &spr, &n);
+    const rgb_t *pal = cga_cur_colors();
     void *pixels;
     int pitch;
     if (SDL_LockTexture(tex, NULL, &pixels, &pitch) != 0)
-        return;
-    cga_to_argb(pixels, pitch / 4, cga_cur_colors());
+        return false;
+    if (smooth)
+        cga_buf_to_argb(vram, pixels, pitch / 4, pal);
+    else
+        cga_to_argb(pixels, pitch / 4, pal);
     SDL_UnlockTexture(tex);
     SDL_RenderClear(ren);
     SDL_RenderCopy(ren, tex, NULL, NULL);
+    if (smooth) {
+        const SDL_Rect playfield = {0, SMOOTH_PLAYFIELD_Y, CGA_W, CGA_H - SMOOTH_PLAYFIELD_Y};
+        SDL_RenderSetClipRect(ren, &playfield);
+        for (int i = 0; i < n; i++) {
+            SDL_Texture *t = texture_of(spr[i].tile, spr[i].cut, pal);
+            const SDL_FRect at = {spr[i].x, spr[i].y, 16, 16};
+            if (t)
+                SDL_RenderCopyF(ren, t, NULL, &at);
+        }
+        SDL_RenderSetClipRect(ren, NULL);
+    }
     SDL_RenderPresent(ren);
+    return smooth;
+}
+
+void plat_set_title(void)
+{
+    if (win)
+        SDL_SetWindowTitle(win, settings.smooth ? "Monuments of Mars (smooth)" : "Monuments of Mars");
 }
 
 void plat_poll(void)
@@ -236,11 +383,13 @@ void plat_poll(void)
             pad_event(&e);
     }
     pad_update();
-    /* The game draws straight into video memory, so redraw on every poll at most at 70 Hz. */
+    /* The game draws straight into video memory, so redraw on every poll at most at 70 Hz;
+     * smooth frames as often as the monitor shows them (up to 240 Hz). */
     static Uint64 last;
+    static bool smooth_shown;
     const Uint64 now = SDL_GetPerformanceCounter();
-    if (dirty || now - last > perf_freq / 70) {
-        present();
+    if (dirty || now - last >= perf_freq / (smooth_shown ? (Uint64)refresh_hz : 70)) {
+        smooth_shown = present();
         last = now;
         dirty = false;
     }

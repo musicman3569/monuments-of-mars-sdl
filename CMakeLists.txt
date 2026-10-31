@@ -24,6 +24,8 @@ add_executable(mars
     src/hiscore.c
     src/menu.c
     src/effects.c
+    src/settings.c
+    src/smooth.c
 )
 
 if(TARGET SDL2::SDL2main)

@@ -17,6 +17,7 @@
 #include "hiscore.h"
 #include "level.h"
 #include "platform.h"
+#include "smooth.h"
 #include "text.h"
 
 /* ------------------------------------------------------------------ state ---- */
@@ -610,6 +611,7 @@ static void update_vplatforms(void)
         vplat_tick = 0;
     for (int i = 0; i < lv.vplat.n; i++) {
         rec_t *r = &lv.vplat.r[i];
+        smooth_id = 0x100 + i;
         blit_vplat(tile(0x04), r->row, r->col);
         if (r->s == 1 && vplat_tick == 0) {
             if (probe[0] == 0xFF || r->row < 8)
@@ -633,6 +635,7 @@ static void update_hplatforms(void)
         hplat_tick = 0;
     for (int i = 0; i < lv.hplat.n; i++) {
         rec_t *r = &lv.hplat.r[i];
+        smooth_id = 0x200 + i;
         blit_hplat(tile(0x04), r->row, r->col);
         const int riding = px - r->col < 3 && px - r->col > -3 && py - r->row == -8;
         if (r->s == 1 && hplat_tick == 0) {
@@ -700,6 +703,7 @@ static void update_walkers(const walker_t *w)
         rec_t *r = &w->list->r[i];
         if (r->s == 2)
             continue;
+        smooth_id = 0x300 + (w->kind - 0x49) * 0x40 + i;
         w->blit(tile(w->first_tile + *w->frame / TILE_BYTES), r->row, r->col);
         int turn;
         if (r->s == 1) {
@@ -760,6 +764,7 @@ static void update_drips(void)
         return;
     }
     const int row = drip_row++;
+    smooth_id = 0x400;
     blit_drip(tile(0x26), row, drip_col);
     if (abs(drip_col - px) < 2 && abs(drip_row - py) < big_hitbox + 8)
         kill_player(0);
@@ -788,13 +793,17 @@ static void update_turret(void)
         }
         return;
     }
-    if (bolt_dir == 1)
+    if (bolt_dir == 1) {
+        smooth_id = 0x401;
         blit_masked_buf2(tile(0x2A), lv.turret_row, bolt_col);
+    }
     const long at = DS_BACK1 + (lv.turret_row + 4) * CGA_STRIDE + bolt_col + bolt_dir;
     const uint8_t a = ds_peek(at), b = ds_peek(at + 1);
     bolt_col = (uint8_t)(bolt_col + bolt_dir);
-    if (bolt_dir == -1)
+    if (bolt_dir == -1) {
+        smooth_id = 0x401;
         blit_masked_buf2(tile(0x2A), lv.turret_row, bolt_col);
+    }
     if (!a && !b && bolt_col != 0 && bolt_col < 0x4E) {
         if (abs(bolt_col - px) < 3 && abs(lv.turret_row - py) < 4) {
             bolt_active = 0;
@@ -845,6 +854,7 @@ static void update_boulders(void)
             nosound();
         }
     drawn:
+        smooth_id = 0x500 + i;
         blit_boulder(tile(0x6E), r->row, r->col);
         if (shot_active && abs(r->col - shot_col) < 4 && abs(r->row - shot_row) < 8)
             shot_active = 0;
@@ -891,8 +901,10 @@ static void update_player_shot(void)
     }
     if (!shot_active)
         return;
-    if (shot_dir == 2)
+    if (shot_dir == 2) {
+        smooth_id = 0x402;
         blit_masked_buf2(tile(0x0B), shot_row, shot_col);
+    }
     const long at = DS_BACK1 + (shot_row + 4) * CGA_STRIDE + shot_col + shot_dir;
     const uint8_t a = ds_peek(at), b = ds_peek(at + 1);
     shot_col = (uint8_t)(shot_col + shot_dir);
@@ -900,8 +912,10 @@ static void update_player_shot(void)
         end_shot();
         return;
     }
-    if (shot_dir == -2)
+    if (shot_dir == -2) {
+        smooth_id = 0x402;
         blit_masked_buf2(tile(0x0B), shot_row, shot_col);
+    }
     if (!a && !b)
         return;
 
@@ -1035,6 +1049,7 @@ static void update_player(void)
         py = 0x54;
 
     update_player_shot();
+    smooth_id = 1;
     blit_masked_buf2_collide(tile(frame), py, px);
     draw_stars();
 
@@ -1305,6 +1320,7 @@ static int frame_keys(void)
         if (ask_yes_no(" RESTORING.")) {
             memcpy(map(), backup, LEVEL_BYTES);
             restore_game();
+            smooth_reset();
             level_changed = 1;
             draw_score(0);
         }
@@ -1355,6 +1371,7 @@ static void start_level(void)
     draw_level();
     level_changed = 0;
     draw_shots(9, 0, shots);
+    smooth_reset();
 }
 
 /* The part of the frame before the timer wait. Returns 0 to go on, 1 if the game ended. */
@@ -1408,7 +1425,7 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
     plat_isr_installed = !script;
     scripted = script != NULL;
     unsigned last = plat_ticks();
-    int frames = 0, total = 0, deaths = 0;
+    int frames = 0, total = 0, deaths = 0, scene_bad = 0;
     const char *p = script;
     while (!plat_quitting()) {
         if (level >= LEVELS) /* after the last level: the original draws "LEVEL 21" first */
@@ -1423,16 +1440,21 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
                 frames--;
                 total++;
             }
+            plat_frame_input_begin();
             const int k = frame_keys();
             if (k == 1)
                 goto quit;
             if (k == 2) {
+                plat_frame_input_end();
                 if (level_changed)
                     break;
                 continue;
             }
             if (frame_update())
                 goto quit;
+            plat_frame_input_end();
+            if (script && smooth_check() != 0) /* the display layer saw the whole frame */
+                scene_bad++;
             if (!script) { /* wait for the timer ISR's tick ([CCD1]) */
                 while (plat_ticks() == last && !plat_quitting())
                     delay(1);
@@ -1443,6 +1465,7 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
                 deaths++;
                 flash(4); /* FlashBackground */
                 restart_level();
+                smooth_reset();
             }
             cheat_level_skip();
             if (level_changed)
@@ -1453,6 +1476,8 @@ quit:
     if (script)
         printf("frames %d: level %d, x %d, y %d, shots %d, score %lu, deaths %d%s\n", total,
                level + 1, px, py, shots, score, deaths, game_over ? ", game over" : "");
+    if (script && scene_bad)
+        printf("smooth: the scene missed part of buffer 2 on %d frames\n", scene_bad);
     /* back to the menu loop: put the level back, then CheckHighScore */
     if (level < LEVELS)
         memcpy(map(), backup, LEVEL_BYTES);

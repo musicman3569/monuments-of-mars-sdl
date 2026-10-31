@@ -63,6 +63,8 @@ const rgb_t *cga_cur_colors(void);
 
 /* Expand video memory to 0xAARRGGBB pixels; pitch is in pixels. */
 void cga_to_argb(uint32_t *out, int pitch, const rgb_t *pal);
+/* ... or any buffer in the same layout. */
+void cga_buf_to_argb(const uint8_t *buf, uint32_t *out, int pitch, const rgb_t *pal);
 
 /* Write video memory as an RGB PNG, each pixel scaled up `scale` times. Returns 0 on success. */
 int cga_write_png(const char *path, const rgb_t *pal, int scale);

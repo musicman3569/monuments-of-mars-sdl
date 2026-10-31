@@ -54,6 +54,13 @@ Start = Enter (the main menu's Enter plays) and B / Back = Esc. The other menu c
 high-score name and the cheats need the keyboard. A `gamecontrollerdb.txt` next to mars.exe
 adds controller mappings.
 
+Presets and settings (port extra, `settings.c`, like ptomb-port's): `--classic` (the default:
+the original game) or `--enhanced` (every enhancement on), then `mars.ini` next to mars.exe
+(or `--config FILE`), then `--set section.key=value`. `--print-settings` writes a commented
+mars.ini. Enhancements: `display.smooth` (moving things glide at the monitor's refresh rate;
+F4 switches it while playing, and the window title says when it's on) and
+`input.quick_taps` (a tap between two frames still counts).
+
 `--script` (port extra, for testing) plays without a window and without waiting for the timer,
 holding the keys of each token for its frame count (`l r j f e` = left, right, jump, fire,
 Enter; S / R = save / restore, answered Y; "40" = 40 frames of nothing), then prints the
@@ -101,6 +108,15 @@ it with Esc.
     X press the configured jump / fire keys, so the KBD setup still applies), outside it
     characters in the BIOS buffer. Each button releases the code it pressed, and game.c
     flags the Y/N questions (`pad_set_yes_no`) so A / B answer them. Hotplugging works.
+  - `settings` (port extra) is the classic / enhanced presets and mars.ini, trimmed from
+    ptomb-port's.
+  - `smooth` (port extra, `display.smooth`) is the display layer: gfx.c reports each frame's
+    CopyBackground, opaque and masked blits into buffer 2 and PresentFrame; game.c tags the
+    moving things' blits (`smooth_id`); the window shows the frame's background with the
+    masked tiles drawn over it as textures, the tagged ones at a position that chases the
+    game's. See notes.md, "The display layer".
+  - `platform` also has `input.quick_taps` (`plat_frame_input_begin` / `_end` around each
+    frame) and draws smooth frames at the monitor's rate.
 - Checked with `--script`: walking over slopes, falling, the level 1 exit (-> level 2, +2000),
   dying and restarting, shooting a robot (+500), picking up +3 shots and a gem; all 20 MARS1
   levels and levels of MARS2-4 run 150 frames without trouble; save / restore round trip.
@@ -153,7 +169,8 @@ it with Esc.
   title) that's all there is. The port charges 0.4 ms per blit plus 1 ms per 16,000 pixels
   (`step` in effects.c); compare with DOSBox and adjust if needed.
 - In-game keys are read at the start of each frame from the ISR's last scancode, so a tap
-  shorter than a frame (55 ms) can be missed, as in the original.
+  shorter than a frame (55 ms) can be missed, as in the original (classic). Enhanced
+  (`input.quick_taps`) counts it.
 - Play-tested by the user against the original: the frame loop matches.
 - The rescue and ending texts are read from the EXE by their first line and the lines after
   it; only MARS1's layout has been checked.

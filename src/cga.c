@@ -57,12 +57,17 @@ const rgb_t *cga_cur_colors(void)
 
 void cga_to_argb(uint32_t *out, int pitch, const rgb_t *pal)
 {
+    cga_buf_to_argb(cga_vram, out, pitch, pal);
+}
+
+void cga_buf_to_argb(const uint8_t *buf, uint32_t *out, int pitch, const rgb_t *pal)
+{
     uint32_t lut[4];
     for (int i = 0; i < 4; i++)
         lut[i] = 0xFF000000u | ((uint32_t)pal[i].r << 16) | ((uint32_t)pal[i].g << 8) | pal[i].b;
     for (int y = 0; y < CGA_H; y++)
         for (int x = 0; x < CGA_W; x++)
-            out[y * pitch + x] = lut[cga_get_in(cga_vram, x, y)];
+            out[y * pitch + x] = lut[cga_get_in(buf, x, y)];
 }
 
 /* --- Minimal PNG writer: uncompressed ("stored") deflate blocks, so no zlib is needed. --- */

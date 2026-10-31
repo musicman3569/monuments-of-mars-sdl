@@ -437,6 +437,60 @@ The timer ISR at 1054:7aba (on INT 1Ch) is just `inc byte [CCD1]`, then it chain
 handler. The frame loop waits until [CCD1] >= 1 and clears it, so the game runs at **one frame
 per BIOS tick, 18.2 Hz**, unless a frame takes longer than a tick.
 
+That, with x in whole bytes, is why movement looks rough: the player moves 4 px on 2 frames
+of 3 (0, 4, 8, 8, 12, 16, 16 ...: 48 px/s in uneven hops), the robots 4 px on 1 frame of 2,
+the ceiling crawlers and horizontal platforms 4 px on 1 of 3, the vertical platforms 2 px on 1
+of 2. UpdatePlayer also skips walking *and* jumping on the third frame (`step_ctr`), so a jump
+pressed then waits a frame.
+
+## The display layer (port enhancement, display.smooth)
+
+Only the picture changes; the game, its buffers and its collision samples run exactly as in
+classic. `src/smooth.h` has the details.
+
+**What's moving.** A frame is built in back buffer 2: CopyBackground (buffer 1, the level),
+opaque blits (erasing a boulder or a pickup), masked blits (everything that moves, the stars,
+the enemy explosion), PresentFrame. gfx.c reports each step, so smooth.c keeps buffer 2 without
+its masked tiles (the background) and the masked tiles in order. An opaque blit drawn after a
+masked tile replaces some of its bytes (the next boulder's erase clips the one just moved
+next to it; a pickup erased beside the player clips the player); those bytes are recorded per
+tile (`cut`) and left out when it's drawn, and a tile cut entirely is dropped. The address
+arithmetic is the game's, so a tile at column 4Dh-4Fh runs on into the next row as it does
+there. Check: in `--script` runs, the background with every tile drawn at the game's position
+is compared with buffer 2 after every frame (`smooth_check`; a mismatch is printed). 240 runs
+(3 scripts x 20 levels x 4 volumes) match on every frame.
+
+**Following the game.** game.c tags the blits of things that move (`smooth_id`: player 1,
+vertical platforms 100h+i, horizontal 200h+i, walkers 300h + kind * 40h + i, drip 400h, bolt
+401h, shot 402h, boulders 500h+i). The window shows each at a position that chases the game's:
+at its average speed over the last 6 frames (the cadences above are 2 or 3 frames long, so 6
+covers both), plus 2 px per frame for every px it is further behind than 2 frames of that
+speed. A simulation of the cadences picked this over plain interpolation, which still stops
+between hops, and over smoothing the samples, which lags 2-3 frames: walking shows at 2.7-3.6
+px per frame (the game's average is 2.67), about one frame (55 ms) behind, never past where
+the game has it. Moves of more than 16 px across or 24 down jump, as do level starts, restarts
+and restores (`smooth_reset`), and a thing not drawn in a frame is forgotten (a new drip or
+shot starts where it is).
+
+**Showing it.** While the playfield in video memory is what PresentFrame left there, the window
+draws the background (with the status line from video memory) and the tiles as 16x16 textures
+at fractional positions, clipped to the playfield, at the monitor's refresh rate (at most
+240 Hz). Vsync is off, as in ptomb-port: waiting for it inside the game's own short delay()s
+(the sound effects run within a frame) would stretch them and slow the game; on Windows the
+compositor keeps the window tear-free. Anything else drawing on the playfield (banners, the
+door, the death explosion, the rescue text) shows video memory as it is until the next frame.
+
+## Quick taps (port enhancement, input.quick_taps)
+
+The frame reads the ISR's held flags and [C8AA] as it starts, so in classic a key pressed and
+let go within one frame (55 ms) is missed. With quick_taps, `plat_frame_input_begin` makes a
+jump, fire, left or right key that was pressed since the last frame and is no longer held count
+as held for the frame (jump for 2 frames, since UpdatePlayer ignores it on every third; fire for
+1, so a shot that hits a wall at once can't be followed by a second), and Enter's make code
+stand in [C8AA] for it; `plat_frame_input_end` takes them back unless the key changed meanwhile.
+Only Enter of the scancode keys: pause (F5) and the Y/N questions wait for [C8AA] to change,
+which a made-up press would confuse.
+
 ## Text (DrawText, 1054:0028)
 
 `DrawText(color, char far *s, row, col)` (Pascal-style, callee pops 10 bytes) sets the cursor

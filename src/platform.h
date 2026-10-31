@@ -28,6 +28,14 @@ extern bool plat_isr_installed; /* the game's INT 9 handler is in place (else th
 void plat_isr_key(int code);
 void plat_push_key(int c);
 
+/* The frame loop, around each frame (input.quick_taps): a jump, fire, walk or Enter key
+ * pressed and let go since the last frame counts as held for this one. */
+void plat_frame_input_begin(void);
+void plat_frame_input_end(void);
+
+/* The window's title, which says whether display.smooth is on (F4 switches it). */
+void plat_set_title(void);
+
 int plat_init(const char *title, char *err, size_t errlen);
 void plat_shutdown(void);
 

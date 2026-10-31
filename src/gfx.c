@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "smooth.h"
+
 uint8_t back1[CGA_VRAM_SIZE];
 uint8_t back2[CGA_VRAM_SIZE];
 collide_t collide;
@@ -22,6 +24,8 @@ static void blit_opaque(uint8_t *base, int base_off, const uint8_t *t, int row, 
 {
     if (!in_range(base_off, row, col))
         return;
+    if (base == back2)
+        smooth_opaque(t, row, col);
     uint8_t *d = base + row * CGA_STRIDE + col;
     for (int i = 0; i < 8; i++, t += 8, d += CGA_STRIDE) {
         d[0] = t[1];
@@ -37,8 +41,11 @@ static void blit_opaque(uint8_t *base, int base_off, const uint8_t *t, int row, 
 
 static void blit_masked(uint8_t *base, const uint8_t *t, int row, int col)
 {
-    if (!in_range(0, row, col))
+    if (!in_range(0, row, col)) {
+        smooth_id = 0;
         return;
+    }
+    smooth_masked(t, row, col); /* every caller draws into buffer 2 */
     uint8_t *d = base + row * CGA_STRIDE + col;
     for (int i = 0; i < 8; i++, t += 8, d += CGA_STRIDE) {
         for (int b = 0; b < 4; b++) {
@@ -154,10 +161,12 @@ void blit_masked_buf2_collide(const uint8_t *tile, int row, int col)
 void copy_background(void)
 {
     memcpy(back2, back1, 15999);
+    smooth_frame_begin();
 }
 
 void present_frame(void)
 {
     memcpy(cga_vram + PLAYFIELD, back2, 0x1E78);
     memcpy(cga_vram + CGA_BANK + PLAYFIELD, back2 + CGA_BANK, 0x1E78);
+    smooth_present();
 }
