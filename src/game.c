@@ -1551,24 +1551,20 @@ static void m_update_hplatforms(void)
     }
 }
 
-/* Walking into a boulder pushes it along, if nothing is on its other side. */
-static bool m_push(int dir, float dx)
+/* The boulder the player is walking into, if it can be pushed along: nothing on its other
+ * side. */
+static mpos_t *m_pushable(int dir)
 {
     const int hit = dir < 0 ? m_wall_l : m_wall_r;
     if (hit < HIT_BOULDER || hit >= HIT_BOULDER + lv.boulders.n)
-        return false;
+        return NULL;
     mpos_t *p = &m_bo[hit - HIT_BOULDER];
     const int x = (int)floorf(p->x), y = (int)floorf(p->y);
     m_self = hit;
     const bool blocked = dir < 0 ? p->x <= 0 || m_box(x - 1, y + 3, x - 1, y + 12, W_SOLID)
                                  : p->x >= M_MAX_X || m_box(x + 16, y + 3, x + 16, y + 12, W_SOLID);
     m_self = 0;
-    if (blocked)
-        return false;
-    p->x += dx;
-    play(1300);
-    nosound();
-    return true;
+    return blocked ? NULL : p;
 }
 
 /* Move the player down (d > 0) or up, a scanline at a time: down stops on the ground, up at
@@ -1642,8 +1638,18 @@ static void m_update_player(void)
             m_walked = 0;
         }
         const float dx = dir * M_WALK * M_TICK;
-        if ((dir < 0 ? can_left : can_right) || m_push(dir, dx)) {
+        const bool free = dir < 0 ? can_left : can_right;
+        mpos_t *pushed = free ? NULL : m_pushable(dir);
+        if (free || pushed) {
             m_pl.x = fminf(fmaxf(m_pl.x + dx, 0), M_MAX_X);
+            if (pushed) {
+                /* Kept right against the player (its edge at their wall test's column): moved
+                 * apart by the same fraction, the two would round to whole pixels on different
+                 * steps, and the boulder's edge would reach into the feet and lift them. */
+                pushed->x = m_pl.x + (dir < 0 ? -12 : 12);
+                play(1300);
+                nosound();
+            }
             if (on_ground) {
                 m_walked += fabsf(dx);
                 frame = frame_first + (int)(m_walked / 4) % 4;

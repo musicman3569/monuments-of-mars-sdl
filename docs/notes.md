@@ -535,7 +535,9 @@ landing while it's held; at 120 steps a second under a low ceiling that was a ne
 its sound, every step), and a press up to 2 frames (110 ms) before landing jumps on landing;
 turning doesn't cost a frame; standing on a platform moves with it
 exactly (the original rides horizontal ones and is pushed up by vertical ones through the
-step-up); walking into a boulder pushes it at walking speed when nothing is on its other side
+step-up); walking into a boulder pushes it at walking speed when nothing is on its other side, kept
+exactly against the player (moved separately, the two round to whole pixels on different
+steps and the boulder's edge lifts the feet)
 (the original recognises the player's sprite bytes beside it); the enemy explosion plays its 5
 tiles over 5 frames instead of drawing them all in one; Enter acts once per press (the
 original acts every frame it is held, with a 200 ms pause to slow that down, which modern
