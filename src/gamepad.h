@@ -18,6 +18,7 @@
  *   the pause menu:     up / down choose, A = Enter, left / right or A switch an option,
  *                       B or Back = back (Esc), Start = back to the game
  *   menus and screens:  A or Start = Enter (play, go on)   B or Back = Esc
+ *   the main menu:      up / down choose (and left / right in its Options), A or Start take
  *
  * The main menu's other choices, the high-score name and the cheats need the keyboard. */
 #ifndef MARS_GAMEPAD_H
@@ -37,7 +38,8 @@ void pad_update(void);
 void pad_set_yes_no(bool on);
 
 /* game.c: the pause menu is up, so the buttons move through it (the up / down arrows, Enter,
- * Esc, SC_PAUSE_MENU) instead of playing. */
+ * Esc, SC_PAUSE_MENU) instead of playing. menu.c: the main menu or its Options are up, so
+ * the d-pad and stick type arrow keys (0 then the scancode). */
 void pad_set_menu(bool on);
 
 /* The buttons pad_update works with, OR-ed together over every controller (for tests). */

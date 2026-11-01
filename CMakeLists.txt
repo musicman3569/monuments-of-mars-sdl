@@ -23,6 +23,7 @@ add_executable(mars
     src/screens.c
     src/hiscore.c
     src/menu.c
+    src/options.c
     src/effects.c
     src/settings.c
     src/smooth.c

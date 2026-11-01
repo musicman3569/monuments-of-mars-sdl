@@ -54,8 +54,8 @@ window and back, and `--window` starts in one.
 Game controllers (port extra, `gamepad.c`; Xbox names): left stick / d-pad walk, A jumps,
 X fires, B or Y use (Enter), Start opens the pause menu, Back quits (Q), LB / RB save /
 restore (S / R); at a Y/N question A / Start = Y, B / Back = N; in the menus and text screens
-A / Start = Enter (the main menu's Enter plays) and B / Back = Esc. The other menu choices,
-the high-score name and the cheats need the keyboard. A `gamecontrollerdb.txt` next to
+A / Start = Enter and B / Back = Esc, and in the main menu up / down (d-pad or stick)
+choose. The high-score name, the key setup and the cheats need the keyboard. A `gamecontrollerdb.txt` next to
 mars.exe adds controller mappings.
 
 The pause menu (port extra, `pause_menu` in game.c; Esc, or the controller's Start, which
@@ -67,10 +67,19 @@ does, and so does the controller's Back. Options switches the enhancements at on
 this run (mars.ini isn't changed): physics (classic / modern, the level carrying on in the
 other frame loop from where things are; the shot, drip, bolt and a fall start afresh),
 smooth movement (classic physics only), CRT filter, full screen and quick taps ("Quick Taps
-Fix"). F5 keeps the
-original's pause. Checked with a throwaway harness on `pad_apply` (each button in game and
-in the menu) and with key presses (both menus, each option, physics both ways mid-level,
-Quit to Menu, Quit Game).
+Fix"); `options.c`, shared with the main menu. F5 keeps the original's pause. Checked with
+a throwaway harness on `pad_apply` (each button in game and in the menu) and with key
+presses (both menus, each option, physics both ways mid-level, Quit to Menu, Quit Game).
+
+The main menu (port extra, in menu.c): up / down (arrows, d-pad or stick) move a highlight
+(the chosen line's magenta turned white) and Enter / Space / A take the line, besides the
+original's letters; the highlight starts on Journey Onward, so Enter still plays at once.
+"Ordering Info." is replaced by "Options" (the same menu as the pause menu's, over the
+picture): `letter_options` letters it into MARSn.CF2 (the same picture in every volume) from
+the picture's own O, the "tions" of "Instructions" and the b of "Keyboard" upside down for
+the p. The ordering info still shows on quitting, as before. Checked with key presses in the
+window and the `pad_apply` harness (the d-pad types arrows in the main menu, nothing on the
+text screens).
 
 Presets and settings (port extra, `settings.c`, like ptomb-port's): `--classic` (the default:
 the original game), `--enhanced` (the original's rules with the display and input

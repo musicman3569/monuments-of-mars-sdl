@@ -96,7 +96,10 @@ static void press(int b)
 {
     const unsigned bit = 1u << b;
     if (!plat_isr_installed) { /* getch: menus, text screens, the high-score name */
-        if (bit & (PAD_A | PAD_START))
+        if (menu && (bit & (PAD_UP | PAD_DOWN | PAD_LEFT | PAD_RIGHT))) { /* an arrow key */
+            plat_push_key(0);
+            plat_push_key(bit == PAD_UP ? 0x48 : bit == PAD_DOWN ? 0x50 : bit == PAD_LEFT ? 0x4B : 0x4D);
+        } else if (bit & (PAD_A | PAD_START))
             plat_push_key('\r');
         else if (bit & (PAD_B | PAD_BACK))
             plat_push_key(27);
@@ -144,9 +147,9 @@ static void release(int b)
 void pad_apply(unsigned held)
 {
     static unsigned prev;
-    /* Outside the game the stick does nothing, and holding it as a game starts walks; up and
-     * down are only for the pause menu. */
-    if (!plat_isr_installed)
+    /* Outside the game the stick does nothing but move through the main menu, and holding it
+     * as a game starts walks; up and down are only for the menus. */
+    if (!plat_isr_installed && !menu)
         held &= ~(unsigned)(PAD_LEFT | PAD_RIGHT);
     if (!menu)
         held &= ~(unsigned)(PAD_UP | PAD_DOWN);
