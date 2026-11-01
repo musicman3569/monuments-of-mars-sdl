@@ -375,12 +375,38 @@ A sample above the top of buffer 2 reads back buffer 1's last rows, which sit ju
 | 6F         | 6F       | the turret's generator ([C8AB]/[C8AC]): shoot it to destroy the turret   |
 | 70         | 70       | computer terminal (Enter): 1 = ShowBlocks5C, 2 = HideBlocks5E, 3 = RevealGems, 4 = free the astronauts, rescue message, +50000 |
 | 74-77      | 74-77    | stars (background, twinkle), drawn over everything                       |
-| 81 / 82    | -        | "YOU HAVE DEACTIVATED THE ENERGY RINGS..." (`ShowRescueMessage`), unused in MARS1 |
+| 14 / 15    | 14 / 15  | the Mars surface: the top row of the outdoor levels' ground, alternating along it (see below) |
+| 80         | 80       | the stone face's pedestal (MARS4 level 20), plain scenery                 |
+| 81 / 82    | 81 / -   | entered (`CheckLevelExit`): MARS1 shows the rescue message; MARS2-4 the **face etched in stone** (see below). Only MARS4 level 20 uses one (81, the face on its pedestal); 82 is never used |
 
 Everything else is plain scenery: drawn, and solid if it has pixels where the player samples.
 
 `FindSpecialTileAt` returns 0 ("plain wall") for boulders, 14, 15, a closed door and the
 switches; the player can only walk into a pixel-solid spot when it returns another code.
+
+**Why 14 and 15 answer 0.** DrawLevel lists every byte from 09 to 46 as a special with a plain
+range check, and the surface tiles 14 / 15 fall inside it (MARS1 levels 1-3 and 20, a few
+levels of each other volume). Whatever FindSpecialTileAt answers other than 0 is something
+the player may be inside: the wall tests let them walk on into it, and the step-up (feet in
+the floor) only lifts them out when it answers 0. Without the exception they sink into the
+surface: a port build without it (a throwaway, never committed) changed 26 of the 240 classic
+regression runs, nearly all with the player 1-3 rows lower, standing in the ground up to the
+head on MARS1 level 1.
+
+**Code 81: the face etched in stone (MARS2-4).** CheckLevelExit tests 81 and 82 in every
+volume. MARS1 calls ShowRescueMessage for them, on every frame the player is in the cell.
+MARS2-4 call a routine of their own instead (image 0491D in MARS2, 04987 in MARS4), once per
+level: a flag at DS:05A6, set there and cleared by DrawLevel. It shows, in the alternate font,
+"YOU HAVE DISCOVERED AND UNUSUAL STONE / ETCHED IN THE SHAPE OF A HUMAN FACE!" and the
+decision to bring it back to NASA (rows 1-23, colours 1 / 2 / 3 by paragraph; MARS4 also
+draws the blank rows, in colour 0, and fixes "SIMULAR" and "AN ALIEN RACE"), then "PRESS ANY
+KEY TO CONTINUE." on row 24, delay(200), waits for a key and goes back to the normal font.
+MARS4 then erases the stone: DrawLevel records the last 81's byte column and row at
+DS:8A27 / 8A28 as it draws, and the handler draws tile 0 there in back buffer 1
+(BlitTile_Buf1, its call at image 01E3E, MARS1's 1054:18a4 moved 5Ah like MARS4's other
+blitters), so the player has taken it. MARS2 and MARS3 have the routine and the text but no
+level with an 81. In MARS4 it is the last thing on level 20: the face sits on its pedestal
+(80) on the hilltop between the start and the exit.
 `TouchTile` can run up to five times a frame (the air, both walls, ground, step-up checks),
 so holding Enter on a lever or a 09/0A switch can flip it more than once.
 
@@ -424,11 +450,27 @@ asked for as g + 1 pixels wide is g wide, and why type 3 variant 1's last step, 
 x1 = 1, still lands on column 0. The library could abort on Esc (if [0F44] is set), but the
 game never turns that on.
 
+### The volumes' texts
+
+MARS2 and MARS3 have MARS1's rescue message and ending, line for line. MARS4 has its own
+(read with a throwaway decoder of the routines' SetHighFont / DrawText calls, which gives
+MARS1's exactly as the port draws them):
+
+- **Rescue message** (ShowRescueMessage, image 01058 in both): MARS1 draws 20 rows, row 1
+  blank, the text from row 2, "PRESS ANY KEY TO CONTINUE." on row 19; colours 1 / 3 / 1 / 3
+  by paragraph, blank rows in colour 8. MARS4's text is shorter ("THESE ARE THE FINAL
+  MISSING ASTRONAUT EXPLORERS...", "YOUR MISSION IS ALMOST COMPLETE...") but it draws 24
+  rows: the text on rows 2-14 (colours 1 / 3 / 2 / 3), blank rows 15-23, the key prompt on
+  row 24.
+- **Ending** (image 0122C in MARS4, 011E4 in MARS1): MARS4's is "A SUCCESSFUL MISSION!"
+  (row 1, col 9, colour 3, normal font), then in the alternate font: rows 3-4 colour 3,
+  "*** CONGRATULATIONS ***" row 6 col 8 colour 1, rows 8-9 colour 2, the four volumes rows
+  10-13 col 6 colour 1, rows 15-18 colour 2, "BE SURE AND PLAY / THE THOR TRILOGY" rows
+  20-21 col 12 colour 1, rows 22-23 cols 3 / 5 colour 3, and the key prompt row 24 in the
+  normal font, colour 2. There is no "YOUR JOURNEY CONTINUES" in MARS4.
+
 ### Still open
 
-- Codes 14 / 15 (FindSpecialTileAt ignores them; they're common ground tiles).
-- What 81 / 82 are for (no MARS1 level uses them).
-- Whether the other volumes' rescue and ending texts have the same number of lines.
 - Effect types 2, 4, 5 and 8 of the Genus library (the game doesn't use them).
 
 ## Timing

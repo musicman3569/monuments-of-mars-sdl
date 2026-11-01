@@ -249,9 +249,14 @@ it with Esc.
   regression runs are unchanged with `--modern --crt`. Seen on screen and play-tested by the
   user.
 - The rescue and ending texts are read from the EXE by their first line and the lines after
-  it; only MARS1's layout has been checked.
+  it, laid out as MARS1 does. MARS2 and MARS3 are the same; MARS4 differs (notes.md, "The
+  volumes' texts"), and the port doesn't follow it yet.
 
 ## Next steps (suggested order)
 
-1. Compare the transitions' speed with DOSBox and tune `step` in effects.c.
-2. Close the open questions in `docs/notes.md` (codes 14 / 15, 81 / 82).
+1. MARS4's differences, all on its last two levels: the face etched in stone (code 81:
+   MARS2-4's own message, once per level, and MARS4 erases the stone), MARS4's rescue
+   message (24 rows), and MARS4's ending, "A SUCCESSFUL MISSION!" (the port shows no ending
+   after MARS4, since it looks for MARS1's first line). See notes.md, "Map codes" and "The
+   volumes' texts".
+2. Compare the transitions' speed with DOSBox and tune `step` in effects.c.
