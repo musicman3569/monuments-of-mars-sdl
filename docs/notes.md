@@ -528,7 +528,12 @@ even scanline under them, as the original's 2-row steps do; tested on every scan
 level 14 boulders catch on the letters they should fall past and fail to cover the spikes.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
-to its byte columns and rows.
+to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in
+the air, and every step, keys or not, a picture past the walk's last (frame_end - 1) goes
+back to standing (frame_first), which is how a landing shows standing again. Unlike the
+original, a level starts with frame_end set for the way the player faces: the original's is
+1E until the first turn, so it walks on three pictures until then, and modern's walk (four
+pictures, by distance) would show 1B for two of them.
 
 **Other differences**: a jump needs a fresh press of the jump key (the original jumps again on
 landing while it's held; at 120 steps a second under a low ceiling that was a new jump, and

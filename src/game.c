@@ -1670,7 +1670,8 @@ static void m_update_player(void)
     }
     if (m_jump_press > 0)
         m_jump_press -= M_TICK;
-
+    if (frame > frame_end - 1) /* the jump's picture, back on the ground: standing */
+        frame = frame_first;
     m_update_vplatforms();
     m_update_hplatforms();
 
@@ -1937,6 +1938,11 @@ static void m_start_level(void)
     m_air = m_jump = m_big = m_tiles = m_jump_press = 0;
     m_jump_was_held = K.jump; /* a jump held through a restart doesn't count */
     m_support = m_wall_l = m_wall_r = m_ceiling = 0;
+    /* all four walking pictures from the start (the original's frame_end is 1E until the
+     * first turn, which leaves out 1E and, with the picture going back to standing past the
+     * last, would show 1B twice as long) */
+    frame_first = facing_left ? 0x21 : 0x1B;
+    frame_end = facing_left ? 0x25 : 0x1F;
     m_nfx = 0;
     m_exit_cell = -1;
 }
