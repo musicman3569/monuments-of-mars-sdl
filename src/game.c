@@ -1345,7 +1345,6 @@ static mpos_t m_vp[MAX_LIST], m_hp[MAX_LIST], m_bo[MAX_LIST], m_wk[3][MAX_LIST];
 static float m_air;      /* frames since the feet left the ground: gravity's speed (FallV) */
 static float m_jump;     /* frames since the jump started: its push (JumpT) */
 static float m_walked;   /* px walked, for the walking frames */
-static float m_big;      /* frames left of the bigger hit box a jump starts with */
 static float m_tiles;    /* frames since the animated tiles last changed */
 static float m_anim[3];  /* frames, for the walkers' animation */
 static int m_wframe[3];
@@ -1434,6 +1433,23 @@ static bool in_sprite(const mpos_t *p, int n, int x, int y)
 {
     const int lx = x - (int)floorf(p->x), ly = y - (int)floorf(p->y);
     return lx >= 0 && lx < 16 && ly >= 0 && ly < 16 && tile_pixel(n, lx, ly);
+}
+
+/* A pixel of tile n at p overlaps one of the player's picture. The original's tests are boxes
+ * around the two (3 byte columns and 8 rows for the walkers, 5 rows more on the frame a jump
+ * starts), which kill a tile short of the picture: under a hovering robot, a jump is death
+ * 26 px below it. */
+static bool m_touches_player(int n, const mpos_t *p)
+{
+    const int x0 = (int)floorf(m_pl.x), y0 = (int)floorf(m_pl.y);
+    const int dx = (int)floorf(p->x) - x0, dy = (int)floorf(p->y) - y0;
+    if (abs(dx) >= 16 || abs(dy) >= 16)
+        return false;
+    for (int y = dy > 0 ? dy : 0; y < 16 && y - dy < 16; y++)
+        for (int x = dx > 0 ? dx : 0; x < 16 && x - dx < 16; x++)
+            if (tile_pixel(frame, x, y) && tile_pixel(n, x - dx, y - dy))
+                return true;
+    return false;
 }
 
 /* What is at pixel (x, y) of the playfield, of the kinds in `what`: 0 for nothing, else one
@@ -1697,7 +1713,6 @@ static void m_update_player(void)
     if (m_jump_press > 0 && !jump_over && can_jump && on_ground) {
         on_ground = 0;
         can_jump = 0;
-        m_big = 1;
         m_jump = 0;
         m_air = 0;
         m_jump_press = 0;
@@ -1863,8 +1878,7 @@ static void m_update_walkers(int k)
             m_explosion(p->x, p->y);
             draw_score(w->points);
         }
-        if (w->kind == 0x4B ? near(p->x - m_pl.x, p->y - m_pl.y, 2, 8)
-                            : near(p->x - m_pl.x, p->y - m_pl.y, 3, (m_big > 0 ? 5 : 0) + 8))
+        if (m_touches_player(w->first_tile + m_wframe[k], p))
             kill_player(0);
     }
 }
@@ -1888,7 +1902,7 @@ static void m_update_drips(void)
     m_drip.y += M_DRIP * M_TICK;
     drip_row = to_row(m_drip.y);
     const int x = (int)floorf(m_drip.x), y = (int)floorf(m_drip.y);
-    if (near(m_drip.x - m_pl.x, m_drip.y + 2 - m_pl.y, 2, (m_big > 0 ? 5 : 0) + 8))
+    if (m_touches_player(0x26, &m_drip))
         kill_player(0);
     else if (m_box(x + 4, (y & ~1) + 16, x + 11, (y & ~1) + 16, W_BG | W_BOULDER)) /* as boulders */
         drip_active = 0;
@@ -1971,7 +1985,7 @@ static void m_start_level(void)
             p->x = p->ox = (float)(lists[k].l->r[i].col * 4);
             p->y = p->oy = (float)(lists[k].l->r[i].row * 2);
         }
-    m_air = m_jump = m_big = m_tiles = m_jump_press = 0;
+    m_air = m_jump = m_tiles = m_jump_press = 0;
     m_jump_was_held = K.jump; /* a jump held through a restart doesn't count */
     m_support = m_wall_l = m_wall_r = m_ceiling = 0;
     /* all four walking pictures from the start (the original's frame_end is 1E until the
@@ -2006,8 +2020,6 @@ static int m_step(void)
     for (int k = 0; k < 3; k++)
         m_update_walkers(k);
     m_update_drips();
-    if (m_big > 0)
-        m_big -= M_TICK;
     m_update_player();
     if (game_over)
         return 1;

@@ -546,6 +546,16 @@ running jump on MARS1 level 12 now rises its full 14 rows and takes two letters 
 stops at the first), and the level 13 shaft's +3 shots is taken on the way down instead of
 being stood on.
 
+**Enemies and drips kill on touching pictures** (`m_touches_player`): a pixel of theirs over
+one of the player's. The original's tests are boxes around the two: 3 byte columns and 8 rows
+for the crawler and the robot, 2 columns for the floor walker and the drip, and 5 rows more
+on the frame a jump starts (`big_hitbox`), so a jump under a hovering robot (MARS1 level 5)
+killed with the robot still 10 px or so above the head. Now it takes the robot's legs on the
+head. The other way round, the floor walker now kills when its picture meets the player's
+from the side, up to 10 px apart, where the original's box needed under 6: an idle player at
+the start of MARS4 level 8, which drops them on one's beat, dies a little more often. The
+turret's bolt and the player's shot keep the original's boxes.
+
 **Other differences**: a jump needs a fresh press of the jump key (the original jumps again on
 landing while it's held; at 120 steps a second under a low ceiling that was a new jump, and
 its sound, every step), and a press up to 2 frames (110 ms) before landing jumps on landing;
