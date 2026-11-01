@@ -7,8 +7,6 @@
 uint8_t cga_vram[CGA_VRAM_SIZE];
 int cga_cur_palette, cga_cur_bright, cga_cur_background;
 
-static int png_write_argb(const char *path, const uint32_t *px, int width, int height);
-
 static const rgb_t palettes[2][2][4] = {
     { /* palette 0: what the game selects for play (SetVideoMode, 1054:0a36) */
         { {0, 0, 0}, {0x00, 0xAA, 0x00}, {0xAA, 0x00, 0x00}, {0xAA, 0x55, 0x00} },
@@ -127,7 +125,7 @@ int cga_write_png(const char *path, const rgb_t *pal, int scale)
     return rc;
 }
 
-static int png_write_argb(const char *path, const uint32_t *px, int width, int height)
+int png_write_argb(const char *path, const uint32_t *px, int width, int height)
 {
     const uint32_t w = (uint32_t)width, h = (uint32_t)height;
     const size_t row = 1 + (size_t)w * 3, raw_len = row * h;

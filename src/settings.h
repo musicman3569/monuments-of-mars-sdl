@@ -30,6 +30,7 @@ typedef struct {
                        time, 120 steps a second, drawn at the monitor's refresh rate */
     int smooth;     /* display.smooth (enhancement): moving things glide between the game's
                        steps, drawn at the monitor's refresh rate (smooth.h) */
+    int crt;        /* display.crt (port extra): the CRT look (crt.h) */
     int quick_taps; /* input.quick_taps (enhancement): a key or button tapped between two
                        frames still counts for the next one */
 } settings_t;

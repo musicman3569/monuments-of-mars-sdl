@@ -64,6 +64,12 @@ game; see notes.md, "Modern physics"), `display.smooth` (with classic physics, m
 glide at the monitor's refresh rate; F4 switches it while playing, and the window title says
 when it's on) and `input.quick_taps` (a tap between two frames still counts).
 
+The CRT look (port extra, `display.crt`, off in every preset): `--crt` starts with it and
+Alt+C switches it while playing. It's realms-of-chaos-port's filter, after RetroArch's
+`2xsal-level2-crt` preset: the picture doubled by 2xSaL with smoothed edges, scaled smoothly
+to the window, under a shadow mask. F12 and `--screenshot` then write it as a 640 x 400 window
+would show it.
+
 `--script` (port extra, for testing) plays without a window and without waiting for the timer,
 holding the keys of each token for its frame count (`l r j f e` = left, right, jump, fire,
 Enter; S / R = save / restore, answered Y; "40" = 40 frames of nothing), then prints the
@@ -126,6 +132,15 @@ it with Esc.
     game's. See notes.md, "The display layer".
   - `platform` also has `input.quick_taps` (`plat_frame_input_begin` / `_end` around each
     frame) and draws smooth frames at the monitor's rate.
+  - `crt` (port extra, `display.crt`) is realms-of-chaos-port's `src/crt.c` with the CGA's
+    320 x 200: 2xSaL level 2 on the CPU (about 4 ms a picture at -O3) and the shadow mask's
+    pattern. `platform` draws the picture into `view_rect` (the letterboxed place in the
+    output's own pixels, replacing SDL_RenderSetLogicalSize) so the mask, a texture of one
+    texel per pixel drawn with the blend 2 x src x dst, lines up with the screen. With the
+    look on, smooth frames are put together on the CPU (the gliding tiles at the nearest
+    pixel), 2xSaL runs only when the picture changed, and the window is redrawn at most 120
+    times a second (`plat_refresh_hz`). A renderer without custom blends gets 2xSaL alone.
+    `src/crt.c` translates two GPL shaders, so it is GPL-2.0-or-later, unlike the rest.
 - Checked with `--script`: walking over slopes, falling, the level 1 exit (-> level 2, +2000),
   dying and restarting, shooting a robot (+500), picking up +3 shots and a gem; all 20 MARS1
   levels and levels of MARS2-4 run 150 frames without trouble; save / restore round trip.
@@ -184,6 +199,10 @@ it with Esc.
 - Modern physics: checked with scripts against classic (jumps, walking, platforms, boulders;
   see notes.md) and live at 142 pictures a second on a 144 Hz display; classic's 240
   regression runs are unchanged. Not yet play-tested by hand.
+- The CRT look: the code is realms-of-chaos-port's, checked there against a numpy version of
+  the shaders. Here: the screenshots without it are byte for byte as before, with it they
+  look right (level 5, the title), the window opens with it (Direct3D, mask drawn) and the
+  regression runs are unchanged with `--modern --crt`. Not yet seen on screen by the user.
 - The rescue and ending texts are read from the EXE by their first line and the lines after
   it; only MARS1's layout has been checked.
 

@@ -2,10 +2,13 @@
 
 #include <SDL.h>
 
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cga.h"
+#include "crt.h"
 #include "gamepad.h"
 #include "settings.h"
 #include "smooth.h"
@@ -17,6 +20,10 @@ bool plat_isr_installed;
 static SDL_Window *win;
 static SDL_Renderer *ren;
 static SDL_Texture *tex;
+static SDL_Texture *crt_tex; /* display.crt: the picture doubled by 2xSaL, scaled smoothly */
+static SDL_Texture *mask;    /* ... and the shadow mask over it, a texel per window pixel */
+static int mask_w, mask_h;
+static bool mask_failed;
 static SDL_AudioDeviceID audio;
 static SDL_atomic_t speaker_hz;
 static bool quitting, dirty = true;
@@ -181,6 +188,15 @@ static void on_key(const SDL_KeyboardEvent *e)
             printf("wrote %s\n", path);
         return;
     }
+    /* Alt+C: the CRT look on / off; the game doesn't see that C */
+    if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_C && (e->keysym.mod & KMOD_ALT)) {
+        if (!e->repeat) {
+            settings.crt = !settings.crt;
+            printf("CRT look %s\n", settings.crt ? "on" : "off");
+            dirty = true;
+        }
+        return;
+    }
     if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_F4 && !e->repeat) {
         settings.smooth = !settings.smooth;
         printf("smooth movement %s\n", settings.smooth ? "on" : "off");
@@ -280,11 +296,13 @@ int plat_init(const char *title, char *err, size_t errlen)
         refresh_hz = mode.refresh_rate < 240 ? mode.refresh_rate : 240;
     tex = ren ? SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, CGA_W, CGA_H)
               : NULL;
-    if (!tex) {
+    crt_tex = tex ? SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, CRT_W, CRT_H)
+                  : NULL;
+    if (!crt_tex) {
         snprintf(err, errlen, "can't open a window: %s", SDL_GetError());
         return -1;
     }
-    SDL_RenderSetLogicalSize(ren, CGA_W, CGA_H);
+    SDL_SetTextureScaleMode(crt_tex, SDL_ScaleModeLinear);
     plat_set_title();
 
     SDL_AudioSpec want = {0}, have;
@@ -305,6 +323,9 @@ void plat_shutdown(void)
 {
     if (audio)
         SDL_CloseAudioDevice(audio);
+    if (mask)
+        SDL_DestroyTexture(mask);
+    SDL_DestroyTexture(crt_tex);
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
@@ -346,15 +367,110 @@ static SDL_Texture *texture_of(const uint8_t *tile, uint64_t cut, const rgb_t *p
     return t;
 }
 
+/* Where the picture goes: as large as the window allows, keeping its shape, with black bars (what
+ * SDL_RenderSetLogicalSize did), in the output's own pixels so the CRT mask lines up with them. */
+static SDL_Rect view_rect(void)
+{
+    int w, h;
+    SDL_GetRendererOutputSize(ren, &w, &h);
+    SDL_Rect r = {0, 0, w, h};
+    if ((long)w * CGA_H > (long)h * CGA_W)
+        r.w = (int)((long)h * CGA_W / CGA_H);
+    else
+        r.h = (int)((long)w * CGA_H / CGA_W);
+    r.x = (w - r.w) / 2;
+    r.y = (h - r.h) / 2;
+    return r;
+}
+
+/* The shadow mask for a picture of w x h pixels, made when that size changes. It's drawn over
+ * the picture with the blend 2 * mask * picture, so each texel holds half the factor: a factor
+ * over 1 (the bright channel's) can't be stored, its half can. */
+static bool make_mask(int w, int h)
+{
+    if (mask_failed)
+        return false;
+    if (mask && w == mask_w && h == mask_h)
+        return true;
+    if (mask)
+        SDL_DestroyTexture(mask);
+    mask = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, w, h);
+    uint32_t *px = malloc((size_t)w * h * sizeof *px);
+    const SDL_BlendMode twice = SDL_ComposeCustomBlendMode(
+        SDL_BLENDFACTOR_DST_COLOR, SDL_BLENDFACTOR_SRC_COLOR, SDL_BLENDOPERATION_ADD,
+        SDL_BLENDFACTOR_ZERO, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
+    if (!mask || !px || SDL_SetTextureBlendMode(mask, twice) != 0) {
+        fprintf(stderr, "mars: the CRT mask can't be drawn (%s); 2xSaL alone\n", SDL_GetError());
+        mask_failed = true;
+        free(px);
+        return false;
+    }
+    const uint32_t lit = (uint32_t)(CRT_MASK_LIGHT / 2 * 255 + 0.5f);
+    const uint32_t dark = (uint32_t)(CRT_MASK_DARK / 2 * 255 + 0.5f);
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++) {
+            const int c = crt_mask_channel(x, y);
+            px[y * w + x] = 0xFF000000u | (c == 0 ? lit : dark) << 16 | (c == 1 ? lit : dark) << 8 |
+                            (c == 2 ? lit : dark);
+        }
+    SDL_UpdateTexture(mask, NULL, px, w * (int)sizeof *px);
+    free(px);
+    mask_w = w;
+    mask_h = h;
+    return true;
+}
+
+/* display.crt with display.smooth: 2xSaL needs the whole picture, so the gliding tiles are drawn
+ * into it here, at the nearest pixel, inside the playfield. */
+static void draw_sprite_argb(uint32_t *frame, const smooth_sprite_t *s, const rgb_t *pal)
+{
+    uint32_t px[16 * 16];
+    smooth_tile_argb(s->tile, s->cut, pal, px);
+    const int x0 = (int)floorf(s->x + 0.5f), y0 = (int)floorf(s->y + 0.5f);
+    for (int y = 0; y < 16; y++) {
+        if (y0 + y < SMOOTH_PLAYFIELD_Y || y0 + y >= CGA_H)
+            continue;
+        for (int x = 0; x < 16; x++)
+            if (x0 + x >= 0 && x0 + x < CGA_W && px[y * 16 + x] >> 24)
+                frame[(y0 + y) * CGA_W + x0 + x] = px[y * 16 + x];
+    }
+}
+
 /* Draw the window. Returns true if it showed a smooth frame (which changes on its own). */
 static bool present(void)
 {
+    if (!ren) /* no window (--screenshot / --script) */
+        return false;
     static uint8_t vram[CGA_VRAM_SIZE];
     const smooth_sprite_t *spr = NULL;
     int n = 0;
     const double now = (double)(SDL_GetPerformanceCounter() - start_counter) / (double)perf_freq;
     const bool smooth = settings.smooth && plat_isr_installed && smooth_frame(now, vram, &spr, &n);
     const rgb_t *pal = cga_cur_colors();
+    const SDL_Rect r = view_rect();
+    if (settings.crt) {
+        /* 2xSaL only when the picture changed: the window is redrawn more often than that */
+        static uint32_t frame[CGA_W * CGA_H], shown[CGA_W * CGA_H], big[CRT_W * CRT_H];
+        static bool have_shown;
+        if (smooth)
+            cga_buf_to_argb(vram, frame, CGA_W, pal);
+        else
+            cga_to_argb(frame, CGA_W, pal);
+        for (int i = 0; i < n; i++)
+            draw_sprite_argb(frame, &spr[i], pal);
+        if (!have_shown || memcmp(frame, shown, sizeof frame) != 0) {
+            crt_2xsal(frame, big);
+            SDL_UpdateTexture(crt_tex, NULL, big, CRT_W * sizeof *big);
+            memcpy(shown, frame, sizeof frame);
+            have_shown = true;
+        }
+        SDL_RenderClear(ren);
+        SDL_RenderCopy(ren, crt_tex, NULL, &r);
+        if (make_mask(r.w, r.h))
+            SDL_RenderCopy(ren, mask, NULL, &r);
+        SDL_RenderPresent(ren);
+        return smooth;
+    }
     void *pixels;
     int pitch;
     if (SDL_LockTexture(tex, NULL, &pixels, &pitch) != 0)
@@ -365,13 +481,15 @@ static bool present(void)
         cga_to_argb(pixels, pitch / 4, pal);
     SDL_UnlockTexture(tex);
     SDL_RenderClear(ren);
-    SDL_RenderCopy(ren, tex, NULL, NULL);
+    SDL_RenderCopy(ren, tex, NULL, &r);
     if (smooth) {
-        const SDL_Rect playfield = {0, SMOOTH_PLAYFIELD_Y, CGA_W, CGA_H - SMOOTH_PLAYFIELD_Y};
+        const float sx = (float)r.w / CGA_W, sy = (float)r.h / CGA_H;
+        const int top = (int)(SMOOTH_PLAYFIELD_Y * sy + 0.5f);
+        const SDL_Rect playfield = {r.x, r.y + top, r.w, r.h - top};
         SDL_RenderSetClipRect(ren, &playfield);
         for (int i = 0; i < n; i++) {
             SDL_Texture *t = texture_of(spr[i].tile, spr[i].cut, pal);
-            const SDL_FRect at = {spr[i].x, spr[i].y, 16, 16};
+            const SDL_FRect at = {r.x + spr[i].x * sx, r.y + spr[i].y * sy, 16 * sx, 16 * sy};
             if (t)
                 SDL_RenderCopyF(ren, t, NULL, &at);
         }
@@ -404,11 +522,11 @@ void plat_poll(void)
     }
     pad_update();
     /* The game draws straight into video memory, so redraw on every poll at most at 70 Hz;
-     * smooth frames as often as the monitor shows them (up to 240 Hz). */
+     * smooth frames as often as the monitor shows them (up to 240 Hz, 120 with the CRT look). */
     static Uint64 last;
     static bool smooth_shown;
     const Uint64 now = SDL_GetPerformanceCounter();
-    if (dirty || now - last >= perf_freq / (smooth_shown ? (Uint64)refresh_hz : 70)) {
+    if (dirty || now - last >= perf_freq / (smooth_shown ? (Uint64)plat_refresh_hz() : 70)) {
         smooth_shown = present();
         last = now;
         dirty = false;
@@ -560,9 +678,10 @@ double plat_seconds(void)
     return (double)(SDL_GetPerformanceCounter() - start_counter) / (double)perf_freq;
 }
 
+/* With the CRT look, at most 120: its 2xSaL takes about 4 ms a picture. */
 int plat_refresh_hz(void)
 {
-    return refresh_hz;
+    return settings.crt && refresh_hz > 120 ? 120 : refresh_hz;
 }
 
 void plat_idle(void)
@@ -571,7 +690,14 @@ void plat_idle(void)
     SDL_Delay(1);
 }
 
+/* At 640 x 400 either way; with the CRT look, as a window that size shows it. */
 int plat_screenshot(const char *path)
 {
+    if (settings.crt) {
+        static uint32_t frame[CGA_W * CGA_H], big[CRT_W * CRT_H];
+        cga_to_argb(frame, CGA_W, cga_cur_colors());
+        crt_render(frame, big);
+        return png_write_argb(path, big, CRT_W, CRT_H);
+    }
     return cga_write_png(path, cga_cur_colors(), 2);
 }

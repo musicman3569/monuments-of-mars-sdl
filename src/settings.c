@@ -28,6 +28,9 @@ static const struct {
      "smooth movement: things glide between the game's steps (18 a second, 4 pixels across),\n"
      "; shown at the monitor's refresh rate. Only the picture changes; the game runs as before.\n"
      "; F4 switches. Not used with game.physics = modern, which draws every step itself"},
+    {"display.crt", T_BOOL, offsetof(settings_t, crt), {0, 0, 0},
+     "the CRT look of RetroArch's 2xsal-level2-crt shader preset: the picture doubled with\n"
+     "; 2xSaL's smoothed edges, then scaled to the window under a shadow mask. Alt+C switches"},
     {"input.quick_taps", T_BOOL, offsetof(settings_t, quick_taps), {0, 1, 1},
      "a key or button tapped and let go between two of the game's frames (18 a second) still\n"
      "; counts for the next frame. Off = the original, which only sees what is held as a frame\n"

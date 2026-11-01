@@ -26,6 +26,7 @@ add_executable(mars
     src/effects.c
     src/settings.c
     src/smooth.c
+    src/crt.c
 )
 
 if(TARGET SDL2::SDL2main)

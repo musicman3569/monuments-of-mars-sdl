@@ -68,5 +68,7 @@ void cga_buf_to_argb(const uint8_t *buf, uint32_t *out, int pitch, const rgb_t *
 
 /* Write video memory as an RGB PNG, each pixel scaled up `scale` times. Returns 0 on success. */
 int cga_write_png(const char *path, const rgb_t *pal, int scale);
+/* ... or any 0xAARRGGBB picture (alpha ignored). */
+int png_write_argb(const char *path, const uint32_t *px, int width, int height);
 
 #endif
