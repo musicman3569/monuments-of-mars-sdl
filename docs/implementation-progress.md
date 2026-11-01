@@ -66,7 +66,8 @@ Start returns to the game. Esc no longer asks QUIT (Y/N) as the original's did; 
 does, and so does the controller's Back. Options switches the enhancements at once, for
 this run (mars.ini isn't changed): physics (classic / modern, the level carrying on in the
 other frame loop from where things are; the shot, drip, bolt and a fall start afresh),
-smooth movement (classic physics only), CRT filter, full screen and quick taps. F5 keeps the
+smooth movement (classic physics only), CRT filter, full screen and quick taps ("Quick Taps
+Fix"). F5 keeps the
 original's pause. Checked with a throwaway harness on `pad_apply` (each button in game and
 in the menu) and with key presses (both menus, each option, physics both ways mid-level,
 Quit to Menu, Quit Game).

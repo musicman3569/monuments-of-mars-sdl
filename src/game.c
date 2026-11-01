@@ -1356,6 +1356,10 @@ static int m_wall_l, m_wall_r, m_ceiling; /* the player's last wall and ceiling 
 #define M_JUMP_BUFFER 2.0f
 static bool m_jump_was_held;
 static float m_jump_press;
+/* So does a shot (the original fires again as soon as a shot ends while fire is held), with
+ * the same 2 frames' grace for a press just before the last shot ends. */
+static bool m_fire_was_held;
+static float m_fire_press;
 
 /* Explosions: the original draws its 5 tiles over each other for one frame; here they play. */
 typedef struct { float x, y, t; } fx_t;
@@ -1627,7 +1631,11 @@ static void m_move_player_y(float d)
 /* UpdatePlayerShot: in front of the shot, half a tile down, the level's picture. */
 static void m_update_shot(void)
 {
-    if (K.fire && !shot_active && shots) {
+    if (K.fire && !m_fire_was_held)
+        m_fire_press = M_JUMP_BUFFER;
+    m_fire_was_held = K.fire;
+    if (m_fire_press > 0 && !shot_active && shots) {
+        m_fire_press = 0;
         shot_active = 1;
         shot_dir = facing_left ? -2 : 2;
         m_shot.x = m_shot.ox = facing_left ? m_pl.x : m_pl.x + 8;
@@ -1636,6 +1644,8 @@ static void m_update_shot(void)
         draw_shots(9, 0, shots);
         sound_shot();
     }
+    if (m_fire_press > 0)
+        m_fire_press -= M_TICK;
     if (!shot_active)
         return;
     /* the 8 pixels from the middle of the shot forwards, nearest first */
@@ -1985,8 +1995,9 @@ static void m_start_level(void)
             p->x = p->ox = (float)(lists[k].l->r[i].col * 4);
             p->y = p->oy = (float)(lists[k].l->r[i].row * 2);
         }
-    m_air = m_jump = m_tiles = m_jump_press = 0;
-    m_jump_was_held = K.jump; /* a jump held through a restart doesn't count */
+    m_air = m_jump = m_tiles = m_jump_press = m_fire_press = 0;
+    m_jump_was_held = K.jump; /* a jump or shot held through a restart doesn't count */
+    m_fire_was_held = K.fire;
     m_support = m_wall_l = m_wall_r = m_ceiling = 0;
     /* all four walking pictures from the start (the original's frame_end is 1E until the
      * first turn, which leaves out 1E and, with the picture going back to standing past the
@@ -2214,7 +2225,7 @@ static int options_menu(void)
         const struct { const char *name; int on; } opt[BACK] = {
             {"PHYSICS", settings.physics == PHYSICS_MODERN}, {"SMOOTH MOVEMENT", settings.smooth},
             {"CRT FILTER", settings.crt}, {"FULL SCREEN", settings.fullscreen},
-            {"QUICK TAPS", settings.quick_taps},
+            {"QUICK TAPS FIX", settings.quick_taps},
         };
         for (int i = 0; i < BACK; i++) {
             snprintf(text[i], sizeof text[i], "%-15s%8s", opt[i].name,
