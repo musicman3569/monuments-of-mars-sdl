@@ -2258,7 +2258,7 @@ static int options_menu(void)
     }
 }
 
-/* The controller's Start: Continue, Options, Quit to Menu (as Q then Y does) or Quit Game.
+/* The controller's Start or Esc: Continue, Options, Quit to Menu (as Q then Y does) or Quit Game.
  * The game stands still meanwhile, and the screen comes back as it was. Returns 1 to quit. */
 static int pause_menu(void)
 {
@@ -2301,9 +2301,9 @@ static int pause_menu(void)
  * rest of the frame. */
 static int frame_keys(void)
 {
-    if (SC == SC_PAUSE_MENU && pause_menu())
+    if ((SC == SC_PAUSE_MENU || SC == 0x01) && pause_menu()) /* Start, or Esc (the port's) */
         return 1;
-    if (SC == 0x10 || SC == 0x01) { /* Q / Esc */
+    if (SC == 0x10) { /* Q (and the original's Esc, which opens the pause menu instead) */
         static const char *const box[] = {"************", "*          *", "*          *", "************"};
         banner(1, 10, box, 4);
         draw_text(2, "  PAUSED  ", 11, 0x0F);

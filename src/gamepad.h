@@ -12,7 +12,7 @@
  *                       B or Y               use a switch, lever or terminal (Enter)
  *                       Start                the pause menu (port extra: Continue, Options,
  *                                            Quit to Menu, Quit Game)
- *                       Back / View          quit (Esc, then the QUIT (Y/N) question)
+ *                       Back / View          quit (Q, then the QUIT (Y/N) question)
  *                       LB / RB              save / restore (S / R, then ARE YOU SURE)
  *   Y/N questions:      A or Start = Y       B or Back = N
  *   the pause menu:     up / down choose, A = Enter, left / right or A switch an option,

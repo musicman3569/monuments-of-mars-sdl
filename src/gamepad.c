@@ -123,7 +123,7 @@ static void press(int b)
     else if (bit == PAD_START)
         code = SC_PAUSE_MENU;
     else if (bit == PAD_BACK)
-        code = 0x01; /* Esc */
+        code = 0x10; /* Q: Esc opens the pause menu */
     else if (bit == PAD_LB)
         code = 0x1F; /* S */
     else if (bit == PAD_RB)
