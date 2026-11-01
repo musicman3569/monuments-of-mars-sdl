@@ -4,8 +4,8 @@
  *        [--print-settings] [--level N] [--palette 0|1] [--bright]
  *        [--crt] [--window] [--screenshot out.png] [--script KEYS] [--show SCREEN]
  *
- * The port's settings (settings.h) come from the preset, mars.ini next to mars.exe, then
- * --set. F4 switches smooth movement on and off, Alt+C the CRT look (--crt starts with it), F11 or
+ * The port's settings (settings.h) come from the preset, mars.ini next to mars.exe (where
+ * Options saves), then --set. F4 switches smooth movement on and off, Alt+C the CRT look (--crt starts with it), F11 or
  * Alt+Enter full screen (on to start with; --window starts in a window).
  *
  * main (1054:7adb): the title screen, then the menu loop: MainMenu, a game, CheckHighScore,
@@ -104,15 +104,20 @@ static options_t opt;
 static int load_settings(const options_t *o)
 {
     char path[1024];
-    if (o->config) {
+    /* Runs without a window read mars.ini only when --config names it, so what Options saved
+     * there doesn't change a test's result. */
+    if (!o->config && (o->screenshot || o->script || o->show)) {
+        path[0] = 0;
+    } else if (o->config) {
         snprintf(path, sizeof path, "%s", o->config);
     } else {
         char *base = SDL_GetBasePath();
         snprintf(path, sizeof path, "%smars.ini", base ? base : "");
         SDL_free(base);
     }
+    settings_set_path(path);
     static settings_pair_t pairs[32];
-    int n = settings_read_file(path, pairs, 32);
+    int n = *path ? settings_read_file(path, pairs, 32) : 0;
     if (n < 0) {
         fprintf(stderr, "mars: can't read %s\n", path);
         n = 0;
@@ -131,6 +136,9 @@ static int load_settings(const options_t *o)
         if (strcmp(pairs[i].key, "game.preset") != 0 &&
             settings_set(pairs[i].key, pairs[i].value, err, sizeof err) != 0)
             fprintf(stderr, "mars: %s:%d: %s (ignored)\n", path, pairs[i].line, err);
+    /* --classic / --enhanced / --modern keep their physics over the file's (Options saves it) */
+    if (o->preset >= 0)
+        settings_set("game.physics", o->preset == PRESET_MODERN ? "modern" : "classic", err, sizeof err);
 
     for (int i = 0; i < o->n_sets; i++) {
         char key[64];

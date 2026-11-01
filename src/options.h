@@ -1,6 +1,6 @@
-/* Port extra: the Options menu, the port's enhancements switched at once (for this run;
- * mars.ini isn't changed). The pause menu (game.c) and the main menu (menu.c) both show it,
- * each with its own way of reading keys. */
+/* Port extra: the Options menu, the port's enhancements switched at once and saved in
+ * mars.ini as it closes (settings_save: only the ones switched). The pause menu (game.c) and
+ * the main menu (menu.c) both show it, each with its own way of reading keys. */
 #ifndef MARS_OPTIONS_H
 #define MARS_OPTIONS_H
 

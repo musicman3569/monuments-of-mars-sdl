@@ -9,8 +9,10 @@
  * Where they come from, later ones winning:
  *   1. the preset (from --classic / --enhanced / --modern, else game.preset in the file,
  *      else classic)
- *   2. mars.ini next to mars.exe (or the --config file)
- *   3. the command line: --set section.key=value
+ *   2. mars.ini next to mars.exe (or the --config file), where Options saves what it switches
+ *      (settings_save); runs without a window skip it unless --config names it
+ *   3. the command line: --classic / --enhanced / --modern's physics, then --set
+ *      section.key=value
  *
  * Adding an enhancement: add a field to settings_t, a row to the table in settings.c (classic
  * value = the original behaviour), and test `settings.field` where the behaviour changes. Keep
@@ -59,5 +61,15 @@ int settings_read_file(const char *path, settings_pair_t *pairs, int max);
 
 /* Write the current settings as an INI file, with comments (--print-settings). */
 void settings_write(FILE *f);
+
+/* The INI file the settings came from, which settings_save writes to (none: nothing is
+ * saved, as in runs without a window). */
+void settings_set_path(const char *path);
+
+/* Save these settings' current values into that file (Options): each key's line is updated,
+ * or added to its section (the section added at the end if missing); everything else in the
+ * file, comments included, stays as it was. A missing file is created. Returns 0, or -1
+ * with a message on stderr. */
+int settings_save(const char *const *keys, int n);
 
 #endif

@@ -1,6 +1,7 @@
 #include "settings.h"
 
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -160,6 +161,14 @@ int settings_read_file(const char *path, settings_pair_t *pairs, int max)
     return bad ? -1 : n;
 }
 
+/* Setting i's value as the file writes it. */
+static const char *value_text(size_t i)
+{
+    static const char *const presets[] = {"classic", "enhanced", "modern"}, *const physics[] = {"classic", "modern"};
+    const int v = *field(i);
+    return table[i].type == T_BOOL ? (v ? "on" : "off") : table[i].type == T_PRESET ? presets[v] : physics[v];
+}
+
 void settings_write(FILE *f)
 {
     fprintf(f, "; Monuments of Mars port settings. Put this file next to mars.exe as mars.ini.\n"
@@ -172,9 +181,144 @@ void settings_write(FILE *f)
             snprintf(section, sizeof section, "%.*s", slen, table[i].key);
             fprintf(f, "\n[%s]\n", section);
         }
-        static const char *const presets[] = {"classic", "enhanced", "modern"}, *const physics[] = {"classic", "modern"};
-        const int v = *field(i);
-        fprintf(f, "; %s\n%s = %s\n", table[i].help, dot + 1,
-                table[i].type == T_BOOL ? (v ? "on" : "off") : table[i].type == T_PRESET ? presets[v] : physics[v]);
+        fprintf(f, "; %s\n%s = %s\n", table[i].help, dot + 1, value_text(i));
     }
+}
+
+static char save_path[1024];
+
+void settings_set_path(const char *path)
+{
+    snprintf(save_path, sizeof save_path, "%s", path ? path : "");
+}
+
+/* A line of the file into s (256 bytes), cut short if longer. */
+static void copy_line(char *s, const char *line)
+{
+    size_t n = strlen(line);
+    if (n > 255)
+        n = 255;
+    memcpy(s, line, n);
+    s[n] = 0;
+}
+
+/* The setting a line of the file sets ("section.key", in `out`), given the section it's in;
+ * false for anything else. */
+static bool line_key(const char *line, const char *section, char *out, size_t outlen)
+{
+    char s[256];
+    copy_line(s, line);
+    char *c = strpbrk(s, ";#");
+    if (c)
+        *c = '\0';
+    char *eq = strchr(s, '=');
+    if (!eq || *trim(s) == '[')
+        return false;
+    *eq = '\0';
+    const char *k = trim(s);
+    if (*section)
+        snprintf(out, outlen, "%s.%s", section, k);
+    else
+        snprintf(out, outlen, "%s", k);
+    return true;
+}
+
+/* The section a line starts, into `section`; false if it isn't a section header. */
+static bool line_section(const char *line, char *section, size_t len)
+{
+    char s[256];
+    copy_line(s, line);
+    char *c = strpbrk(s, ";#");
+    if (c)
+        *c = '\0';
+    char *t = trim(s), *close = strchr(t, ']');
+    if (*t != '[' || !close)
+        return false;
+    *close = '\0';
+    snprintf(section, len, "%s", trim(t + 1));
+    return true;
+}
+
+int settings_save(const char *const *keys, int n)
+{
+    if (!*save_path || n == 0)
+        return 0;
+    /* the file as lines (without their ends), plus room for the new ones */
+    enum { MAX_LINES = 1000 };
+    static char lines[MAX_LINES][256];
+    int count = 0;
+    FILE *f = fopen(save_path, "r");
+    if (f) {
+        while (count < MAX_LINES - 3 * (int)N_SETTINGS && fgets(lines[count], sizeof lines[count], f)) {
+            lines[count][strcspn(lines[count], "\r\n")] = '\0';
+            count++;
+        }
+        fclose(f);
+    }
+    for (int k = 0; k < n; k++) {
+        size_t i = 0;
+        while (i < N_SETTINGS && strcmp(table[i].key, keys[k]) != 0)
+            i++;
+        if (i == N_SETTINGS)
+            continue;
+        const char *dot = strchr(keys[k], '.');
+        char want[32], section[32] = "", key[64];
+        snprintf(want, sizeof want, "%.*s", (int)(dot - keys[k]), keys[k]);
+        int at = -1, end_of_section = -1; /* the key's line; the last line of its section */
+        for (int l = 0; l < count; l++) {
+            if (line_section(lines[l], section, sizeof section))
+                continue;
+            if (!strcmp(section, want) && strspn(lines[l], " \t") != strlen(lines[l]))
+                end_of_section = l;
+            if (line_key(lines[l], section, key, sizeof key) && !strcmp(key, keys[k]))
+                at = l;
+        }
+        if (at < 0 && end_of_section < 0) /* no such section yet: one at the end */
+            for (int l = count - 1; l >= 0 && end_of_section < 0; l--)
+                if (line_section(lines[l], section, sizeof section) && !strcmp(section, want))
+                    end_of_section = l;
+        if (at >= 0) { /* (a key before any section names its section itself) */
+            char sec[32] = "", comment[256] = "";
+            for (int l = 0; l < at; l++)
+                line_section(lines[l], sec, sizeof sec);
+            const char *c = strpbrk(lines[at], ";#"); /* a comment after the value stays */
+            if (c)
+                copy_line(comment, c);
+            snprintf(lines[at], sizeof lines[at], "%s = %s%s%.200s", *sec ? dot + 1 : keys[k], value_text(i),
+                     *comment ? " " : "", comment);
+        } else {
+            if (end_of_section < 0) {
+                if (count > 0 && lines[count - 1][0])
+                    lines[count++][0] = '\0';
+                snprintf(lines[count++], sizeof lines[0], "[%s]", want);
+                end_of_section = count - 1;
+            }
+            memmove(lines[end_of_section + 2], lines[end_of_section + 1],
+                    (size_t)(count - end_of_section - 1) * sizeof lines[0]);
+            snprintf(lines[end_of_section + 1], sizeof lines[0], "%s = %s", dot + 1, value_text(i));
+            count++;
+        }
+    }
+    /* written whole to a new file, then put in the old one's place */
+    char tmp[1100];
+    snprintf(tmp, sizeof tmp, "%s.tmp", save_path);
+    f = fopen(tmp, "w");
+    if (!f) {
+        fprintf(stderr, "mars: can't write %s\n", tmp);
+        return -1;
+    }
+    for (int l = 0; l < count; l++)
+        fprintf(f, "%s\n", lines[l]);
+    const bool bad = ferror(f) != 0;
+    if (fclose(f) != 0 || bad) {
+        fprintf(stderr, "mars: can't write %s\n", tmp);
+        remove(tmp);
+        return -1;
+    }
+    remove(save_path);
+    if (rename(tmp, save_path) != 0) {
+        fprintf(stderr, "mars: can't replace %s\n", save_path);
+        return -1;
+    }
+    return 0;
 }

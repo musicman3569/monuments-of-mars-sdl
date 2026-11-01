@@ -63,13 +63,14 @@ sends `SC_PAUSE_MENU`, a scancode no key has): Continue, Options, Quit to Menu (
 and Quit Game, in a box of the game's stars over the stopped game. Up / down (arrows, d-pad
 or stick) choose, Enter / A takes, left / right switch an option, Esc / B / Back go back,
 Start returns to the game. Esc no longer asks QUIT (Y/N) as the original's did; Q still
-does, and so does the controller's Back. Options switches the enhancements at once, for
-this run (mars.ini isn't changed): physics (classic / modern, the level carrying on in the
+does, and so does the controller's Back. Options switches the enhancements at once, and
+saves the ones switched in mars.ini as it closes (see the settings below): physics (classic / modern, the level carrying on in the
 other frame loop from where things are; the shot, drip, bolt and a fall start afresh),
 smooth movement (classic physics only), CRT filter, full screen and quick taps ("Quick Taps
 Fix"); `options.c`, shared with the main menu. F5 keeps the original's pause. Checked with
 a throwaway harness on `pad_apply` (each button in game and in the menu) and with key
-presses (both menus, each option, physics both ways mid-level, Quit to Menu, Quit Game).
+presses (both menus, each option, physics both ways mid-level, Quit to Menu, Quit Game);
+every option play-tested by the user.
 
 The main menu (port extra, in menu.c): up / down (arrows, d-pad or stick) move a highlight
 (the chosen line's magenta turned white) and Enter / Space / A take the line, besides the
@@ -90,6 +91,20 @@ commented mars.ini. Enhancements: `game.physics = modern` (things move a pixel a
 game; see notes.md, "Modern physics"), `display.smooth` (with classic physics, moving things
 glide at the monitor's refresh rate; F4 switches it while playing, and the window title says
 when it's on) and `input.quick_taps` (a tap between two frames still counts).
+
+Saved options (port extra, `settings_save`): leaving Options writes the settings switched in
+it into mars.ini (or the `--config` file), the file edited in place: each one's line updated
+(a comment after the value kept), or added to its section, the section added at the end if
+missing, and a missing file created; everything else, comments included, stays as it was.
+They then load like any other line of the file. F4, Alt+C and F11 still switch for this run
+only. Two rules keep that from surprising: `--classic`, `--enhanced` and `--modern` keep
+their physics over the file's (`game.physics` is what Options saves for them), and runs
+without a window (`--script`, `--screenshot`, `--show`) read mars.ini only when `--config`
+names it, so saved options don't change a test's result. Checked with a throwaway harness
+on `settings_save` (no file, a key before any section, a section without the key, a
+section missing, keys already there, the `--print-settings` file: only the switched lines
+change), in the window with `--config` (two options switched, the file read back), and the
+loading rules with a copy of mars.exe and its own mars.ini.
 
 The CRT look (port extra, `display.crt`, off in every preset): `--crt` starts with it and
 Alt+C switches it while playing. It's realms-of-chaos-port's filter, after RetroArch's
@@ -225,11 +240,14 @@ it with Esc.
 - Play-tested by the user against the original: the frame loop matches.
 - Modern physics: checked with scripts against classic (jumps, walking, platforms, boulders;
   see notes.md) and live at 142 pictures a second on a 144 Hz display; classic's 240
-  regression runs are unchanged. Not yet play-tested by hand.
+  regression runs are unchanged. Play-tested by the user throughout (the fixes since: the
+  level 4 exit, the jump's fresh press, pushing, the landing and walking pictures, pickups,
+  enemies' hits, the shot's fresh press).
 - The CRT look: the code is realms-of-chaos-port's, checked there against a numpy version of
   the shaders. Here: the screenshots without it are byte for byte as before, with it they
   look right (level 5, the title), the window opens with it (Direct3D, mask drawn) and the
-  regression runs are unchanged with `--modern --crt`. Not yet seen on screen by the user.
+  regression runs are unchanged with `--modern --crt`. Seen on screen and play-tested by the
+  user.
 - The rescue and ending texts are read from the EXE by their first line and the lines after
   it; only MARS1's layout has been checked.
 

@@ -25,9 +25,23 @@ void menu_box(const char *title, const char *const *lines, int n, int sel, int w
     plat_dirty();
 }
 
+/* The settings switched in the menu, saved as it closes. */
+static void save(const bool *changed, int n)
+{
+    static const char *const keys[] = {"game.physics", "display.smooth", "display.crt", "display.fullscreen",
+                                       "input.quick_taps"};
+    const char *list[5];
+    int k = 0;
+    for (int i = 0; i < n; i++)
+        if (changed[i])
+            list[k++] = keys[i];
+    settings_save(list, k);
+}
+
 int options_menu(menu_key_fn key, bool *physics_changed)
 {
     enum { PHYSICS, SMOOTH, CRT, FULLSCREEN, QUICK_TAPS, BACK, N };
+    bool changed[BACK] = {false};
     int sel = 0;
     for (;;) {
         char text[N][24];
@@ -49,11 +63,11 @@ int options_menu(menu_key_fn key, bool *physics_changed)
             sel = (sel + N - 1) % N;
         else if (k == 0x50)
             sel = (sel + 1) % N;
-        else if (k == SC_PAUSE_MENU)
-            return 1;
-        else if (k == 0x01 || (k == 0x1C && sel == BACK))
-            return 0;
-        else if (k == 0x1C || k == 0x4B || k == 0x4D) {
+        else if (k == SC_PAUSE_MENU || k == 0x01 || (k == 0x1C && sel == BACK)) {
+            save(changed, BACK);
+            return k == SC_PAUSE_MENU;
+        } else if (k == 0x1C || k == 0x4B || k == 0x4D) {
+            changed[sel] = true;
             switch (sel) {
             case PHYSICS:
                 settings.physics = settings.physics == PHYSICS_MODERN ? PHYSICS_CLASSIC : PHYSICS_MODERN;
