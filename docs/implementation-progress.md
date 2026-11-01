@@ -51,11 +51,22 @@ desktop's own mode, the mouse pointer hidden); F11 or Alt+Enter switches to a 96
 window and back, and `--window` starts in one.
 
 Game controllers (port extra, `gamepad.c`; Xbox names): left stick / d-pad walk, A jumps,
-X fires, B or Y use (Enter), Start pauses (F5), Back quits (Esc), LB / RB save / restore
-(S / R); at a Y/N question A / Start = Y, B / Back = N; in the menus and text screens A /
-Start = Enter (the main menu's Enter plays) and B / Back = Esc. The other menu choices, the
-high-score name and the cheats need the keyboard. A `gamecontrollerdb.txt` next to mars.exe
-adds controller mappings.
+X fires, B or Y use (Enter), Start opens the pause menu, Back quits (Esc), LB / RB save /
+restore (S / R); at a Y/N question A / Start = Y, B / Back = N; in the menus and text screens
+A / Start = Enter (the main menu's Enter plays) and B / Back = Esc. The other menu choices,
+the high-score name and the cheats need the keyboard. A `gamecontrollerdb.txt` next to
+mars.exe adds controller mappings.
+
+The pause menu (port extra, `pause_menu` in game.c; the controller's Start, which sends
+`SC_PAUSE_MENU`, a scancode no key has): Continue, Options, Quit to Menu (as Q then Y) and
+Quit Game, in a box of the game's stars over the stopped game. Up / down (d-pad or stick)
+choose, A takes, B / Back go back, Start returns to the game. Options switches the
+enhancements at once, for this run (mars.ini isn't changed): physics (classic / modern, the
+level carrying on in the other frame loop from where things are; the shot, drip, bolt and a
+fall start afresh), smooth movement (classic physics only), CRT filter, full screen and quick
+taps. The keyboard keeps F5's original pause. Checked with a throwaway harness on
+`pad_apply` (each button in game and in the menu) and with key presses standing in for Start
+(both menus, each option, physics both ways mid-level, Quit to Menu, Quit Game).
 
 Presets and settings (port extra, `settings.c`, like ptomb-port's): `--classic` (the default:
 the original game), `--enhanced` (the original's rules with the display and input

@@ -2162,10 +2162,147 @@ static int ask_yes_no(const char *what)
     return yes;
 }
 
+/* ------------------------------------------- the pause menu (port extra) */
+
+/* The options changed game.physics: the level carries on in the other frame loop. */
+static int physics_switch;
+
+/* The next key pressed (a make code), waiting for it; Esc once the window closes. */
+static int menu_key(void)
+{
+    int last = SC;
+    for (;;) {
+        if (plat_quitting())
+            return 0x01;
+        delay(1);
+        if (SC != last) {
+            last = SC;
+            if (!(SC & 0x80))
+                return SC;
+        }
+    }
+}
+
+/* A box of `banner`'s stars, `width` across, in the middle of the playfield: the title, then
+ * the lines, the chosen one marked. */
+static void draw_menu(const char *title, const char *const *lines, int n, int sel, int width)
+{
+    const int col = (40 - width) / 2, row = 1 + (24 - (n + 5)) / 2;
+    char s[41];
+    for (int r = 0; r < n + 5; r++) {
+        memset(s, r == 0 || r == n + 4 ? '*' : ' ', (size_t)width);
+        s[0] = s[width - 1] = '*';
+        s[width] = 0;
+        draw_text(1, s, row + r, col);
+    }
+    draw_text(0x0F, title, row + 1, col + (width - (int)strlen(title)) / 2);
+    for (int i = 0; i < n; i++) {
+        draw_ascii(0x0F, i == sel ? ">" : " ", row + 3 + i, col + 2);
+        draw_text(i == sel ? 0x0F : 2, lines[i], row + 3 + i, col + 4);
+    }
+}
+
+/* Options: the port's enhancements, each switched at once (for this run; mars.ini isn't
+ * changed). Returns 1 when Start closes the whole menu. */
+static int options_menu(void)
+{
+    enum { PHYSICS, SMOOTH, CRT, FULLSCREEN, QUICK_TAPS, BACK, N };
+    int sel = 0;
+    for (;;) {
+        char text[N][24];
+        const char *lines[N];
+        const struct { const char *name; int on; } opt[BACK] = {
+            {"PHYSICS", settings.physics == PHYSICS_MODERN}, {"SMOOTH MOVEMENT", settings.smooth},
+            {"CRT FILTER", settings.crt}, {"FULL SCREEN", settings.fullscreen},
+            {"QUICK TAPS", settings.quick_taps},
+        };
+        for (int i = 0; i < BACK; i++) {
+            snprintf(text[i], sizeof text[i], "%-15s%8s", opt[i].name,
+                     i == PHYSICS ? (opt[i].on ? "MODERN" : "CLASSIC") : opt[i].on ? "ON" : "OFF");
+            lines[i] = text[i];
+        }
+        lines[BACK] = "BACK";
+        draw_menu("OPTIONS", lines, N, sel, 29);
+        const int k = menu_key();
+        if (k == 0x48)
+            sel = (sel + N - 1) % N;
+        else if (k == 0x50)
+            sel = (sel + 1) % N;
+        else if (k == SC_PAUSE_MENU)
+            return 1;
+        else if (k == 0x01 || (k == ENTER && sel == BACK))
+            return 0;
+        else if (k == ENTER || k == 0x4B || k == 0x4D) {
+            switch (sel) {
+            case PHYSICS:
+                settings.physics = settings.physics == PHYSICS_MODERN ? PHYSICS_CLASSIC : PHYSICS_MODERN;
+                physics_switch = 1;
+                plat_set_title();
+                break;
+            case SMOOTH:
+                settings.smooth = !settings.smooth;
+                plat_set_title();
+                break;
+            case CRT:
+                settings.crt = !settings.crt;
+                break;
+            case FULLSCREEN:
+                plat_set_fullscreen(!settings.fullscreen);
+                break;
+            case QUICK_TAPS:
+                settings.quick_taps = !settings.quick_taps;
+                break;
+            }
+            plat_dirty();
+        }
+    }
+}
+
+/* The controller's Start: Continue, Options, Quit to Menu (as Q then Y does) or Quit Game.
+ * The game stands still meanwhile, and the screen comes back as it was. Returns 1 to quit. */
+static int pause_menu(void)
+{
+    static const char *const items[] = {"CONTINUE", "OPTIONS", "QUIT TO MENU", "QUIT GAME"};
+    static uint8_t saved[CGA_VRAM_SIZE];
+    memcpy(saved, cga_vram, sizeof saved);
+    nosound();
+    pad_set_menu(true);
+    int sel = 0, quit = 0;
+    for (;;) {
+        draw_menu("PAUSED", items, 4, sel, 18);
+        const int k = menu_key();
+        if (k == 0x48)
+            sel = (sel + 3) % 4;
+        else if (k == 0x50)
+            sel = (sel + 1) % 4;
+        else if (k == 0x01 || k == SC_PAUSE_MENU || (k == ENTER && sel == 0))
+            break;
+        else if (k == ENTER && sel == 1) {
+            const int close = options_menu();
+            memcpy(cga_vram, saved, sizeof saved);
+            if (close)
+                break;
+        } else if (k == ENTER) {
+            if (sel == 3)
+                plat_request_quit();
+            quit = 1;
+            break;
+        }
+    }
+    memcpy(cga_vram, saved, sizeof saved);
+    plat_dirty();
+    pad_set_menu(false);
+    plat_forget_taps();
+    SC = 0; /* the key that closed it is not the game's */
+    return quit;
+}
+
 /* The keys main handles at the top of each frame. Returns 1 to quit the game, 2 to skip the
  * rest of the frame. */
 static int frame_keys(void)
 {
+    if (SC == SC_PAUSE_MENU && pause_menu())
+        return 1;
     if (SC == 0x10 || SC == 0x01) { /* Q / Esc */
         static const char *const box[] = {"************", "*          *", "*          *", "************"};
         banner(1, 10, box, 4);
@@ -2291,10 +2428,24 @@ static const char *script_step(const char *p, int *frames)
  * would never finish one. */
 static float script_frames;
 
+/* The options switched game.physics: the other frame loop carries on from what both keep in
+ * the original's variables (the player's, the moving things' and the level's); what only one
+ * tracks (the shot, the drip, the bolt, a fall) starts afresh. */
+static void switch_physics(void)
+{
+    physics_switch = 0;
+    modern = settings.physics == PHYSICS_MODERN;
+    end_shot();
+    drip_active = bolt_active = 0;
+    fall_v = 1;
+    jump_t = jump_sub = 0;
+    smooth_reset();
+}
+
 /* game.physics = modern: a level's frame loop, M_HZ fixed steps a second whatever the
  * display does, drawn whenever the display can show a new picture. A script's frame counts
  * stay the original's frames (several steps each). Returns 1 to quit, 0 when the level
- * changes. */
+ * changes, 2 when the options switched to classic physics. */
 static int run_level_modern(const char *script, const char **p, int *frames, int *total, int *deaths)
 {
     m_start_level();
@@ -2329,6 +2480,11 @@ static int run_level_modern(const char *script, const char **p, int *frames, int
             const int k = frame_keys();
             if (k == 1)
                 return 1;
+            if (physics_switch) {
+                plat_frame_input_end();
+                switch_physics();
+                return 2;
+            }
             const double t0 = plat_seconds();
             if (k == 0 && m_step())
                 return 1;
@@ -2382,12 +2538,15 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
         if (level >= LEVELS) /* after the last level: the original draws "LEVEL 21" first */
             break;
         start_level();
-        if (modern) {
-            if (run_level_modern(script, &p, &frames, &total, &deaths))
-                goto quit;
-            continue;
-        }
         while (!plat_quitting()) {
+            if (modern) {
+                const int r = run_level_modern(script, &p, &frames, &total, &deaths);
+                if (r == 1)
+                    goto quit;
+                if (r == 0)
+                    break;
+                continue; /* switched to classic */
+            }
             if (script) {
                 while (frames == 0 && p)
                     p = script_step(p, &frames);
@@ -2400,6 +2559,11 @@ static void run(gamedata_t *g, int first_level, int start_shots, const char *scr
             const int k = frame_keys();
             if (k == 1)
                 goto quit;
+            if (physics_switch) {
+                plat_frame_input_end();
+                switch_physics();
+                continue;
+            }
             if (k == 2) {
                 plat_frame_input_end();
                 if (level_changed)

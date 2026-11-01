@@ -148,6 +148,13 @@ void plat_frame_input_begin(void)
     enter_tapped = sc_touched = false;
 }
 
+void plat_forget_taps(void)
+{
+    for (int i = 0; i < 4; i++)
+        tapped[i] = false;
+    enter_tapped = false;
+}
+
 void plat_frame_input_end(void)
 {
     for (int i = 0; i < 4; i++) {
@@ -178,6 +185,21 @@ static void keyboard_isr(int code)
     if (code == (k->key_right | 0x80) || code == 0xCD) k->right = false;
 }
 
+void plat_set_fullscreen(bool on)
+{
+    settings.fullscreen = on;
+    if (!win)
+        return;
+    SDL_SetWindowFullscreen(win, on ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+    SDL_ShowCursor(on ? SDL_DISABLE : SDL_ENABLE);
+    dirty = true;
+}
+
+void plat_request_quit(void)
+{
+    quitting = true;
+}
+
 static void on_key(const SDL_KeyboardEvent *e)
 {
     const int xt = xt_scancode(e->keysym.scancode);    if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_F12 && !e->repeat) {
@@ -190,12 +212,8 @@ static void on_key(const SDL_KeyboardEvent *e)
     /* F11 or Alt+Enter: full screen on / off (the desktop's mode, so no mode switch) */
     if (e->type == SDL_KEYDOWN && (e->keysym.scancode == SDL_SCANCODE_F11 ||
                                    (e->keysym.scancode == SDL_SCANCODE_RETURN && (e->keysym.mod & KMOD_ALT)))) {
-        if (!e->repeat) {
-            settings.fullscreen = !settings.fullscreen;
-            SDL_SetWindowFullscreen(win, settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
-            SDL_ShowCursor(settings.fullscreen ? SDL_DISABLE : SDL_ENABLE);
-            dirty = true;
-        }
+        if (!e->repeat)
+            plat_set_fullscreen(!settings.fullscreen);
         return;
     }
     /* Alt+C: the CRT look on / off; the game doesn't see that C */

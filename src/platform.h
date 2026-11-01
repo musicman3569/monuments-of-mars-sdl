@@ -28,10 +28,21 @@ extern bool plat_isr_installed; /* the game's INT 9 handler is in place (else th
 void plat_isr_key(int code);
 void plat_push_key(int c);
 
+/* Port extra: the make code the controller's Start sends in game, for the pause menu. No PC/XT
+ * key sends it, so the game's own key tests never see it. */
+#define SC_PAUSE_MENU 0x70
+
+/* Port extras for the pause menu: leave the program (plat_quitting says yes from then on), and
+ * full screen on or off (display.fullscreen, as F11 does). */
+void plat_request_quit(void);
+void plat_set_fullscreen(bool on);
+
 /* The frame loop, around each frame (input.quick_taps): a jump, fire, walk or Enter key
  * pressed and let go since the last frame counts as held for this one. */
 void plat_frame_input_begin(void);
 void plat_frame_input_end(void);
+/* ... and the pause menu closed: what was tapped in it is not the game's. */
+void plat_forget_taps(void);
 
 /* The window's title, which says whether display.smooth is on (F4 switches it). */
 void plat_set_title(void);

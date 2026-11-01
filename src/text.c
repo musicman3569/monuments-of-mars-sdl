@@ -55,6 +55,12 @@ void draw_text(int color, const char *s, int row, int col)
         put_char(map_char((unsigned char)*s), color, row, col);
 }
 
+void draw_ascii(int color, const char *s, int row, int col)
+{
+    for (; *s; s++, col++)
+        put_char(*s & 0x7F, color, row, col);
+}
+
 void draw_number(int color, int width, long value, int row, int col)
 {
     char buf[16];

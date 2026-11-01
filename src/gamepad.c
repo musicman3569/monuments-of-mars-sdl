@@ -9,7 +9,7 @@
 #define MAX_PADS 8
 
 static SDL_GameController *pads[MAX_PADS];
-static bool yes_no;
+static bool yes_no, menu;
 
 /* The stick walks past half-way and stops below 3/8, so it doesn't flicker at the edge. */
 #define STICK_ON 16384
@@ -18,6 +18,11 @@ static bool yes_no;
 void pad_set_yes_no(bool on)
 {
     yes_no = on;
+}
+
+void pad_set_menu(bool on)
+{
+    menu = on;
 }
 
 /* --- controllers coming and going ---------------------------------------------------------- */
@@ -98,7 +103,10 @@ static void press(int b)
         return;
     }
     int code = 0;
-    if (yes_no && (bit & (PAD_A | PAD_START)))
+    if (menu) {
+        code = bit == PAD_UP ? 0x48 : bit == PAD_DOWN ? 0x50 : bit == PAD_LEFT ? 0x4B : bit == PAD_RIGHT ? 0x4D
+             : bit == PAD_A ? 0x1C : bit & (PAD_B | PAD_BACK) ? 0x01 : bit == PAD_START ? SC_PAUSE_MENU : 0;
+    } else if (yes_no && (bit & (PAD_A | PAD_START)))
         code = 0x15; /* Y */
     else if (yes_no && (bit & (PAD_B | PAD_BACK)))
         code = 0x31; /* N */
@@ -113,7 +121,7 @@ static void press(int b)
     else if (bit & (PAD_B | PAD_Y))
         code = 0x1C; /* Enter */
     else if (bit == PAD_START)
-        code = 0x3F; /* F5 */
+        code = SC_PAUSE_MENU;
     else if (bit == PAD_BACK)
         code = 0x01; /* Esc */
     else if (bit == PAD_LB)
@@ -136,9 +144,12 @@ static void release(int b)
 void pad_apply(unsigned held)
 {
     static unsigned prev;
-    /* Outside the game the stick does nothing, and holding it as a game starts walks. */
+    /* Outside the game the stick does nothing, and holding it as a game starts walks; up and
+     * down are only for the pause menu. */
     if (!plat_isr_installed)
         held &= ~(unsigned)(PAD_LEFT | PAD_RIGHT);
+    if (!menu)
+        held &= ~(unsigned)(PAD_UP | PAD_DOWN);
     const unsigned changed = held ^ prev;
     prev = held;
     for (int b = 0; b < PAD_BUTTONS; b++)
@@ -158,10 +169,11 @@ void pad_update(void)
         {SDL_CONTROLLER_BUTTON_START, PAD_START}, {SDL_CONTROLLER_BUTTON_BACK, PAD_BACK},
         {SDL_CONTROLLER_BUTTON_LEFTSHOULDER, PAD_LB}, {SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, PAD_RB},
         {SDL_CONTROLLER_BUTTON_DPAD_LEFT, PAD_LEFT}, {SDL_CONTROLLER_BUTTON_DPAD_RIGHT, PAD_RIGHT},
+        {SDL_CONTROLLER_BUTTON_DPAD_UP, PAD_UP}, {SDL_CONTROLLER_BUTTON_DPAD_DOWN, PAD_DOWN},
     };
-    static bool stick_left, stick_right;
+    static bool stick_left, stick_right, stick_up, stick_down;
     unsigned held = 0;
-    int x = 0; /* the stick pushed furthest wins */
+    int x = 0, y = 0; /* the stick pushed furthest wins */
     for (int i = 0; i < MAX_PADS; i++) {
         if (!pads[i])
             continue;
@@ -171,6 +183,9 @@ void pad_update(void)
         const int a = SDL_GameControllerGetAxis(pads[i], SDL_CONTROLLER_AXIS_LEFTX);
         if (SDL_abs(a) > SDL_abs(x))
             x = a;
+        const int b = SDL_GameControllerGetAxis(pads[i], SDL_CONTROLLER_AXIS_LEFTY);
+        if (SDL_abs(b) > SDL_abs(y))
+            y = b;
     }
     stick_left = x <= -STICK_ON || (stick_left && x < -STICK_OFF);
     stick_right = x >= STICK_ON || (stick_right && x > STICK_OFF);
@@ -178,5 +193,11 @@ void pad_update(void)
         held |= PAD_LEFT;
     if (stick_right)
         held |= PAD_RIGHT;
+    stick_up = y <= -STICK_ON || (stick_up && y < -STICK_OFF);
+    stick_down = y >= STICK_ON || (stick_down && y > STICK_OFF);
+    if (stick_up)
+        held |= PAD_UP;
+    if (stick_down)
+        held |= PAD_DOWN;
     pad_apply(held);
 }
