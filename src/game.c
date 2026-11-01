@@ -1395,7 +1395,9 @@ static bool near(float dx, float dy, int cols, int rows)
 
 /* ------------------------------------------- the world, pixel by pixel */
 
-enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLAT | W_BOULDER };
+enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLAT | W_BOULDER,
+       W_PICKUPS_OPEN = 16, /* the level, except the pickups' pixels (only the player's tests) */
+       W_BODY = W_SOLID | W_PICKUPS_OPEN }; /* what the player can't move through */
 #define HIT_BG 1
 #define HIT_VPLAT 0x100
 #define HIT_HPLAT 0x200
@@ -1407,6 +1409,25 @@ static bool tile_pixel(int n, int lx, int ly)
 {
     const uint8_t *row = tile(n) + (ly & 1) * 0x40 + (ly >> 1) * 8;
     return (row[2 * (lx >> 2) + 1] >> (6 - 2 * (lx & 3))) & 3;
+}
+
+/* The things the player picks up by touching them: the key card, +3 shots, a gem, the letters
+ * (and a hidden gem, which has no pixels until the terminal turns it into one). */
+static bool is_pickup(int s)
+{
+    return s == 0x0C || s == 0x0E || s == 0x3A || (s >= 0x56 && s <= 0x59) || s == 0x5F;
+}
+
+/* Pixel (x, y) is in a pickup still in the level. */
+static bool m_in_pickup(int x, int y)
+{
+    for (int i = 0; i < lv.special.n; i++) {
+        const rec_t *r = &lv.special.r[i];
+        if (lv.special_active[i] && is_pickup(r->s) && x >= r->col * 4 && x < r->col * 4 + 16 &&
+            y >= r->row * 2 && y < r->row * 2 + 16)
+            return true;
+    }
+    return false;
 }
 
 static bool in_sprite(const mpos_t *p, int n, int x, int y)
@@ -1424,7 +1445,7 @@ static int m_at(int x, int y, int what)
         return HIT_BG;
     if (y < 0)
         return 0;
-    if ((what & W_BG) && cga_get_in(back1, x, y))
+    if ((what & W_BG) && cga_get_in(back1, x, y) && !((what & W_PICKUPS_OPEN) && m_in_pickup(x, y)))
         return HIT_BG;
     if (what & W_PLAT) {
         for (int i = 0; i < lv.vplat.n; i++)
@@ -1477,12 +1498,12 @@ static bool m_ff(int x, int y)
  * cover x+4..x+11, the ground is the scanline under them, the head's room the one above. */
 static int m_ground(int x, int y)
 {
-    return m_box(x + 4, y + 16, x + 11, y + 16, W_SOLID);
+    return m_box(x + 4, y + 16, x + 11, y + 16, W_BODY);
 }
 
 static int m_head(int x, int y)
 {
-    return m_box(x + 4, y - 1, x + 11, y - 1, W_SOLID);
+    return m_box(x + 4, y - 1, x + 11, y - 1, W_BODY);
 }
 
 /* ------------------------------------------- the player */
@@ -1620,9 +1641,23 @@ static void m_update_shot(void)
         shot_hit(&map()[(y / 2 + 3) / 8 * LEVEL_COLS + hit_x / 16]);
 }
 
-static bool lets_jump_on(int c) /* the specials a jump carries on through */
+static bool lets_jump_on(int c) /* the specials a jump carries on through (and pickups) */
 {
-    return c == 0 || c == 0x16 || c == 0x17 || c == 0x0A || c == 0x09;
+    return c == 0 || c == 0x16 || c == 0x17 || c == 0x0A || c == 0x09 || is_pickup(c);
+}
+
+/* The pickups the player overlaps, by FindSpecialTileAt's reach (3 byte columns, 8 rows): with
+ * their pixels open, a fall no longer lands on one to take it. */
+static void m_take_pickups(void)
+{
+    for (int i = 0; i < lv.special.n; i++) {
+        const rec_t *r = &lv.special.r[i];
+        if (lv.special_active[i] && is_pickup(r->s) && r->s != 0x5F && abs(r->col - px) < 3 &&
+            abs(r->row - py) < 8) {
+            found = i;
+            touch_tile(r->s);
+        }
+    }
 }
 
 /* UpdatePlayer. */
@@ -1707,10 +1742,11 @@ static void m_update_player(void)
     m_update_shot();
 
     int x = (int)floorf(m_pl.x), y = (int)floorf(m_pl.y);
-    m_wall_l = m_box(x + 3, y + 4, x + 3, y + 10, W_SOLID);
-    m_wall_r = m_box(x + 12, y + 4, x + 12, y + 10, W_SOLID);
+    m_wall_l = m_box(x + 3, y + 4, x + 3, y + 10, W_BODY);
+    m_wall_r = m_box(x + 12, y + 4, x + 12, y + 10, W_BODY);
     m_ceiling = m_head(x, y);
     m_sync_player();
+    m_take_pickups();
     if (!m_wall_l) {
         can_left = 1;
     } else {
@@ -1751,12 +1787,12 @@ static void m_update_player(void)
         m_jump = 0;
         m_support = ground;
     }
-    if (m_box(x + 4, y + 11, x + 11, y + 15, W_SOLID)) { /* feet in the floor: step up */
+    if (m_box(x + 4, y + 11, x + 11, y + 15, W_BODY)) { /* feet in the floor: step up */
         const int c = find_special_at((uint8_t)py, (uint8_t)px);
         touch_tile(c);
         if (!m_ceiling) {
             for (int k = 0; c == 0 && k < M_STEP_UP && !m_head(x, y) &&
-                            m_box(x + 4, y + 11, x + 11, y + 15, W_SOLID); k++)
+                            m_box(x + 4, y + 11, x + 11, y + 15, W_BODY); k++)
                 m_pl.y = (float)--y;
             on_ground = 1;
             can_jump = 1;

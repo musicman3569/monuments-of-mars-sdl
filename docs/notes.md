@@ -535,6 +535,17 @@ original, a level starts with frame_end set for the way the player faces: the or
 1E until the first turn, so it walks on three pictures until then, and modern's walk (four
 pictures, by distance) would show 1B for two of them.
 
+**Pickups don't get in the way** (the card 0C, +3 shots 0E, gems 3A, the letters 56-59, the
+hidden gem 5F): the player's own tests (ground, head, walls, step-up; `W_BODY`) skip pixels
+inside a pickup still in the level, and a jump carries on through them (the original ends the
+jump on touching one, and its pixels are a ceiling, a wall or a floor like any other).
+Everything else (boulders, enemies, drips, the shot) still sees them as the original does.
+With their pixels open a fall can't land on one to take it, so `m_take_pickups` takes any the
+player overlaps every step, by FindSpecialTileAt's reach. Seen in the regression runs: a
+running jump on MARS1 level 12 now rises its full 14 rows and takes two letters (the original
+stops at the first), and the level 13 shaft's +3 shots is taken on the way down instead of
+being stood on.
+
 **Other differences**: a jump needs a fresh press of the jump key (the original jumps again on
 landing while it's held; at 120 steps a second under a low ceiling that was a new jump, and
 its sound, every step), and a press up to 2 frames (110 ms) before landing jumps on landing;
