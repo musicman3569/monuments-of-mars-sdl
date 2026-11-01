@@ -180,12 +180,22 @@ static void keyboard_isr(int code)
 
 static void on_key(const SDL_KeyboardEvent *e)
 {
-    const int xt = xt_scancode(e->keysym.scancode);
-    if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_F12 && !e->repeat) {
+    const int xt = xt_scancode(e->keysym.scancode);    if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_F12 && !e->repeat) {
         char path[32];
         snprintf(path, sizeof path, "shot%03d.png", ++shot_no);
         if (plat_screenshot(path) == 0)
             printf("wrote %s\n", path);
+        return;
+    }
+    /* F11 or Alt+Enter: full screen on / off (the desktop's mode, so no mode switch) */
+    if (e->type == SDL_KEYDOWN && (e->keysym.scancode == SDL_SCANCODE_F11 ||
+                                   (e->keysym.scancode == SDL_SCANCODE_RETURN && (e->keysym.mod & KMOD_ALT)))) {
+        if (!e->repeat) {
+            settings.fullscreen = !settings.fullscreen;
+            SDL_SetWindowFullscreen(win, settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+            SDL_ShowCursor(settings.fullscreen ? SDL_DISABLE : SDL_ENABLE);
+            dirty = true;
+        }
         return;
     }
     /* Alt+C: the CRT look on / off; the game doesn't see that C */
@@ -286,7 +296,7 @@ int plat_init(const char *title, char *err, size_t errlen)
     pad_init();
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 600,
-                           SDL_WINDOW_RESIZABLE);
+                           SDL_WINDOW_RESIZABLE | (settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
     /* No vsync: waiting for it inside the game's own delay() calls (its sound effects) would
      * stretch them. plat_poll paces the redraws instead; on Windows the compositor keeps a
      * window tear-free. */
@@ -303,6 +313,7 @@ int plat_init(const char *title, char *err, size_t errlen)
         return -1;
     }
     SDL_SetTextureScaleMode(crt_tex, SDL_ScaleModeLinear);
+    SDL_ShowCursor(settings.fullscreen ? SDL_DISABLE : SDL_ENABLE); /* the game has no use for it */
     plat_set_title();
 
     SDL_AudioSpec want = {0}, have;

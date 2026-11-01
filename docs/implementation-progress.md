@@ -46,6 +46,9 @@ Keys: the setup in MARSn.KBD (default D: Alt / Ctrl or the arrows walk, Space ju
 Shift fires), Enter uses switches / levers / terminals, Q or Esc then Y quits, S / R save
 and restore, F1 sound, F5 pause, F6 give up, Caps Lock + PgDn / ` skips levels and Caps Lock +
 `>` in the menu starts with 20 shots (the game's cheats). F12 saves `shotNNN.png`.
+The game starts full screen (port extra, `display.fullscreen`, on in every preset: the
+desktop's own mode, the mouse pointer hidden); F11 or Alt+Enter switches to a 960 x 600
+window and back, and `--window` starts in one.
 
 Game controllers (port extra, `gamepad.c`; Xbox names): left stick / d-pad walk, A jumps,
 X fires, B or Y use (Enter), Start pauses (F5), Back quits (Esc), LB / RB save / restore

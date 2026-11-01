@@ -2,10 +2,11 @@
  *
  *   mars [MARSn.EXE] [--classic | --enhanced | --modern] [--set section.key=value] [--config FILE]
  *        [--print-settings] [--level N] [--palette 0|1] [--bright]
- *        [--crt] [--screenshot out.png] [--script KEYS] [--show SCREEN]
+ *        [--crt] [--window] [--screenshot out.png] [--script KEYS] [--show SCREEN]
  *
  * The port's settings (settings.h) come from the preset, mars.ini next to mars.exe, then
- * --set. F4 switches smooth movement on and off, Alt+C the CRT look (--crt starts with it).
+ * --set. F4 switches smooth movement on and off, Alt+C the CRT look (--crt starts with it), F11 or
+ * Alt+Enter full screen (on to start with; --window starts in a window).
  *
  * main (1054:7adb): the title screen, then the menu loop: MainMenu, a game, CheckHighScore,
  * back to the menu. --level N starts with a game at level N instead. F12 saves a screenshot.
@@ -84,9 +85,11 @@ static int parse_args(int argc, char **argv, options_t *o)
             o->bright = 1;
         else if (!strcmp(a, "--crt") && o->n_sets < (int)(sizeof o->sets / sizeof o->sets[0]))
             o->sets[o->n_sets++] = "display.crt=on";
+        else if (!strcmp(a, "--window") && o->n_sets < (int)(sizeof o->sets / sizeof o->sets[0]))
+            o->sets[o->n_sets++] = "display.fullscreen=off";
         else if (a[0] == '-') {
             fprintf(stderr, "usage: mars [MARSn.EXE] [--classic | --enhanced | --modern] [--set section.key=value] "
-                            "[--config FILE] [--print-settings] [--level N] [--palette 0|1] [--bright] [--crt] "
+                            "[--config FILE] [--print-settings] [--level N] [--palette 0|1] [--bright] [--crt] [--window] "
                             "[--screenshot out.png] [--script KEYS] [--show SCREEN]\n");
             return -1;
         } else

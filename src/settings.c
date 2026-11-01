@@ -31,6 +31,8 @@ static const struct {
     {"display.crt", T_BOOL, offsetof(settings_t, crt), {0, 0, 0},
      "the CRT look of RetroArch's 2xsal-level2-crt shader preset: the picture doubled with\n"
      "; 2xSaL's smoothed edges, then scaled to the window under a shadow mask. Alt+C switches"},
+    {"display.fullscreen", T_BOOL, offsetof(settings_t, fullscreen), {1, 1, 1},
+     "start full screen (off = in a window; --window too). F11 or Alt+Enter switches"},
     {"input.quick_taps", T_BOOL, offsetof(settings_t, quick_taps), {0, 1, 1},
      "a key or button tapped and let go between two of the game's frames (18 a second) still\n"
      "; counts for the next frame. Off = the original, which only sees what is held as a frame\n"
