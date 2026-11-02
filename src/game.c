@@ -1476,7 +1476,8 @@ enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLA
 #define HIT_PLAYER 0x400
 static int m_self; /* the thing asking, which doesn't see itself */
 
-static bool tile_pixel(int n, int lx, int ly)
+/* The colour of pixel (lx, ly) of tile n, 0 where it has none. */
+static int tile_pixel(int n, int lx, int ly)
 {
     const uint8_t *row = tile(n) + (ly & 1) * 0x40 + (ly >> 1) * 8;
     return (row[2 * (lx >> 2) + 1] >> (6 - 2 * (lx & 3))) & 3;
@@ -1573,11 +1574,24 @@ static int m_byte(int x, int y, int what)
     return m_box(x, y, x + 3, y, what);
 }
 
-/* ... and its "FFh" tests, the platforms' turning marks: 4 pixels of colour 3 in the level. */
+/* The colour at pixel (x, y) of buffer 2 when the platforms sample it: the level with the
+ * boulders drawn over it (DrawBoulders comes first in the frame). */
+static int m_colour(int x, int y)
+{
+    for (int i = 0; i < lv.boulders.n; i++) {
+        const int lx = x - (int)floorf(m_bo[i].x), ly = y - (int)floorf(m_bo[i].y);
+        if (lx >= 0 && lx < 16 && ly >= 0 && ly < 16 && tile_pixel(0x6E, lx, ly))
+            return tile_pixel(0x6E, lx, ly);
+    }
+    return cga_get_in(back1, x, y);
+}
+
+/* ... and its "FFh" tests, the platforms' turning marks: 4 pixels of colour 3, which a
+ * boulder's top also has (the level 13 platform turns on the stack of boulders under it). */
 static bool m_ff(int x, int y)
 {
     for (int i = 0; i < 4; i++)
-        if (x + i < 0 || x + i >= CGA_W || y < 0 || y >= PLAYFIELD_LINES || cga_get_in(back1, x + i, y) != 3)
+        if (x + i < 0 || x + i >= CGA_W || y < 0 || y >= PLAYFIELD_LINES || m_colour(x + i, y) != 3)
             return false;
     return true;
 }
@@ -1610,13 +1624,15 @@ static void m_carry(int id, float dx, float dy)
     m_pl.y += dy;
 }
 
-/* UpdateVPlatforms: state 1 up, 0 down, 2 stopped, turning at a mark or the top. */
+/* UpdateVPlatforms: state 1 up, 0 down, 2 stopped, turning at a mark or the top. The marks
+ * are tested at the platform's row, as the original moves it: an even scanline, so the odd
+ * ones of a ledge's underside (the level 13 platform's top) don't turn it early. */
 static void m_update_vplatforms(void)
 {
     for (int i = 0; i < lv.vplat.n; i++) {
         rec_t *r = &lv.vplat.r[i];
         mpos_t *p = &m_vp[i];
-        const int x = (int)floorf(p->x), y = (int)floorf(p->y);
+        const int x = (int)floorf(p->x), y = to_row(p->y) * 2;
         float dy = 0;
         if (r->s == 1) {
             if (m_ff(x, y - 28) || p->y < 16)

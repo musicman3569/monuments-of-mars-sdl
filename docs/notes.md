@@ -568,6 +568,11 @@ at the bottom of an open shaft (level 4) sit in the map's last row, reached only
 Kept from the original, because the levels depend on it: boulders and drips test only the
 even scanline under them, as the original's 2-row steps do; tested on every scanline, the
 level 14 boulders catch on the letters they should fall past and fail to cover the spikes.
+The vertical platforms likewise test their turning marks at their row's even scanline, and
+the marks are looked for in buffer 2 as the original has it then: the level with the boulders
+drawn over it, so a boulder's solid top turns a platform (the level 13 platform over the stack
+of boulders). Tested on every scanline, the other level 13 platform turned 12 px early on the
+odd scanlines of the ledge's underside.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

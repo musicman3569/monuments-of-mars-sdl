@@ -246,7 +246,7 @@ it with Esc.
   see notes.md) and live at 142 pictures a second on a 144 Hz display; classic's 240
   regression runs are unchanged. Play-tested by the user throughout (the fixes since: the
   level 4 exit, the jump's fresh press, pushing, the landing and walking pictures, pickups,
-  enemies' hits, the shot's fresh press).
+  enemies' hits, the shot's fresh press, the vertical platforms turning on boulders).
 - The CRT look: the code is realms-of-chaos-port's, checked there against a numpy version of
   the shaders. Here: the screenshots without it are byte for byte as before, with it they
   look right (level 5, the title), the window opens with it (Direct3D, mask drawn) and the
