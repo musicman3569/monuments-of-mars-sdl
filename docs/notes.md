@@ -585,6 +585,13 @@ A switch, lever or terminal (09/0A, 0F-12, 16/17, 70) is a wall only on the scan
 original samples, 10 below the player's row, not on the wall test's scanlines 4-10: the
 original steps a byte at a time past the rest, and the level 19 switch's button (scanlines
 5-8 of its tile) otherwise kept the player off the hole beside it.
+
+**Fixed in modern, kept in classic** (the original does it): a switch, lever or terminal is
+ground only on the top two scanlines of its picture. The original's ground test has no
+exception for them, so dropping off the block two tiles left of the MARS1 level 15 terminal
+and moving right lands on the terminal's desk, 4 px up and half in the wall above it (modern,
+testing every scanline, landed 10 px up). Landing on one from above, as in MARS2 level 10,
+still stands on it.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

@@ -248,7 +248,7 @@ it with Esc.
   level 4 exit, the jump's fresh press, pushing, the landing and walking pictures, pickups,
   enemies' hits, the shot's fresh press, the vertical platforms turning on boulders, walking
   through terminals, the bolt vanishing with its turret, getting past the switches'
-  buttons).
+  buttons, not landing on the level 15 terminal's desk, which the original does).
 - The CRT look: the code is realms-of-chaos-port's, checked there against a numpy version of
   the shaders. Here: the screenshots without it are byte for byte as before, with it they
   look right (level 5, the title), the window opens with it (Direct3D, mask drawn) and the

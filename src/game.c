@@ -1470,7 +1470,7 @@ enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLA
        W_PICKUPS_OPEN = 16, /* the level, except the pickups' pixels (only the player's tests) */
        W_BODY = W_SOLID | W_PICKUPS_OPEN, /* what the player can't move through */
        W_SPECIALS_OPEN = 32, /* ... nor the walk-through specials' pixels (the step-up's test) */
-       W_CONTROLS_OPEN = 64 }; /* ... nor the switches', levers' and terminals' (m_wall) */
+       W_CONTROLS_OPEN = 64 }; /* ... nor the switches', levers' and terminals' (m_wall, m_ground) */
 #define HIT_BG 1
 #define HIT_VPLAT 0x100
 #define HIT_HPLAT 0x200
@@ -1503,6 +1503,15 @@ static bool is_walk_through(int s)
 static bool is_control(int s)
 {
     return s == 0x09 || s == 0x0A || (s >= 0x0F && s <= 0x12) || s == 0x16 || s == 0x17 || s == 0x70;
+}
+
+/* Scanline ly of tile n has a pixel. */
+static bool m_tile_row_has_pixels(int n, int ly)
+{
+    for (int lx = 0; lx < 16; lx++)
+        if (tile_pixel(n, lx, ly))
+            return true;
+    return false;
 }
 
 /* Pixel (x, y) is in a special still in the level that `kind` picks. */
@@ -1613,11 +1622,35 @@ static bool m_ff(int x, int y)
     return true;
 }
 
+/* A switch, lever or terminal is ground only at its top, its first two scanlines with pixels:
+ * the player stands on one landed on from above, but falls past its insides. */
+static bool m_control_top(int x0, int x1, int y)
+{
+    for (int i = 0; i < lv.special.n; i++) {
+        const rec_t *r = &lv.special.r[i];
+        const int tx = r->col * 4, ty = r->row * 2;
+        if (!lv.special_active[i] || !is_control(r->s) || y < ty || y >= ty + 16 || x1 < tx || x0 >= tx + 16)
+            continue;
+        int top = 0;
+        while (top < 16 && !m_tile_row_has_pixels(r->s, top))
+            top++;
+        if (y - ty > top + 1)
+            continue;
+        for (int x = x0 > tx ? x0 : tx; x <= x1 && x < tx + 16; x++)
+            if (tile_pixel(r->s, x - tx, y - ty))
+                return true;
+    }
+    return false;
+}
+
 /* The player's test points (BlitMasked_Buf2_Collide's), for the sprite at (x, y): the feet
- * cover x+4..x+11, the ground is the scanline under them, the head's room the one above. */
+ * cover x+4..x+11, the ground is the scanline under them, the head's room the one above.
+ * Unlike the original, a switch, lever or terminal is ground only at its top (m_control_top):
+ * falling past the level 15 terminal, the original lands on its desk, half in the wall above. */
 static int m_ground(int x, int y)
 {
-    return m_box(x + 4, y + 16, x + 11, y + 16, W_BODY);
+    const int h = m_box(x + 4, y + 16, x + 11, y + 16, W_BODY | W_CONTROLS_OPEN);
+    return h || !m_control_top(x + 4, x + 11, y + 16) ? h : HIT_BG;
 }
 
 static int m_head(int x, int y)
@@ -1925,7 +1958,7 @@ static void m_update_player(void)
         m_jump = 0;
         m_support = ground;
     }
-    if (m_box(x + 4, y + 11, x + 11, y + 15, W_BODY)) { /* feet in the floor: step up */
+    if (m_box(x + 4, y + 11, x + 11, y + 15, W_BODY | W_CONTROLS_OPEN)) { /* feet in the floor: step up */
         const int c = find_special_at((uint8_t)py, (uint8_t)px);
         touch_tile(c);
         if (!m_ceiling) {
