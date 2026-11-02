@@ -275,7 +275,7 @@ static void on_key(const SDL_KeyboardEvent *e)
 typedef struct { int at, hz; } tone_t;
 static tone_t sfx_rec[MAX_SFX], sfx_play[MAX_SFX];
 static int n_rec, rec_at, n_play, play_next, play_pos;
-static bool recording;
+static bool recording, play_kept;
 
 static void audio_callback(void *userdata, Uint8 *stream, int len)
 {
@@ -689,15 +689,18 @@ void plat_sfx_begin(void)
     n_rec = rec_at = 0;
 }
 
-void plat_sfx_end(void)
+void plat_sfx_end(bool keep)
 {
     recording = false;
     if (!audio || !n_rec)
         return;
     SDL_LockAudioDevice(audio);
-    memcpy(sfx_play, sfx_rec, sizeof sfx_rec[0] * (size_t)n_rec);
-    n_play = n_rec;
-    play_next = play_pos = 0;
+    if (!(n_play && play_kept)) {
+        memcpy(sfx_play, sfx_rec, sizeof sfx_rec[0] * (size_t)n_rec);
+        n_play = n_rec;
+        play_next = play_pos = 0;
+        play_kept = keep;
+    }
     SDL_UnlockAudioDevice(audio);
 }
 

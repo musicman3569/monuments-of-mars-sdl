@@ -637,7 +637,10 @@ tiles over 5 frames instead of drawing them all in one; Enter acts once per pres
 original acts every frame it is held, with a 200 ms pause to slow that down, which modern
 drops); the rescue message shows on entering its cell rather than every frame on it. Sound
 effects no longer stop the game: between `plat_sfx_begin` and `plat_sfx_end` the tones and
-delays are written down and played by the audio thread. Animations (doors, blocks, the
+delays are written down and played by the audio thread. A new effect cuts off the one
+playing, except the letters' fanfare, which is kept (`plat_sfx_end(true)`) and plays to its
+end: the effects ended meanwhile aren't heard. Otherwise a jump straight after the S cut it
+off (the original plays it with the game stopped). Animations (doors, blocks, the
 rings, the death explosion) and messages still stop it, as in the original; the step loop
 then carries on rather than catching up.
 

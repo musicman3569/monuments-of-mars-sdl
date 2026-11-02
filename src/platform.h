@@ -87,9 +87,10 @@ void plat_nosound(void);
 
 /* game.physics = modern: a sound effect that doesn't stop the game. Between begin and end,
  * plat_sound, plat_nosound and plat_delay don't happen at once but are written down; end
- * then plays them from the audio thread, cutting off the effect before. */
+ * then plays them from the audio thread, cutting off the effect before, unless that one was
+ * kept: a kept effect plays to its end, and the effects ended meanwhile aren't heard. */
 void plat_sfx_begin(void);
-void plat_sfx_end(void);
+void plat_sfx_end(bool keep);
 
 /* For game.physics = modern's frame loop: seconds since start, the display's refresh rate,
  * and a short wait (a millisecond) that keeps the window alive. */

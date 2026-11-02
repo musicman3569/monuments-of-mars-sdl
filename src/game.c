@@ -202,7 +202,15 @@ static void sfx_begin(void)
 static void sfx_end(void)
 {
     if (modern)
-        plat_sfx_end();
+        plat_sfx_end(false);
+}
+
+/* ... and one that plays to its end: the letters' fanfare, which a jump straight after the S
+ * otherwise cut off (the original plays it with the game stopped). */
+static void sfx_end_kept(void)
+{
+    if (modern)
+        plat_sfx_end(true);
 }
 
 static void sound_jump(void) /* 1054:068b */
@@ -449,7 +457,7 @@ static void letters(void)
                     delay(j + 1);
                 }
             nosound();
-            sfx_end();
+            sfx_end_kept();
             draw_score(10000);
         }
     }
