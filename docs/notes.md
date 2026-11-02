@@ -593,7 +593,10 @@ and moving right lands on the terminal's desk, 4 px up and half in the wall abov
 testing every scanline, landed 10 px up). Landing on one from above, as in MARS2 level 10,
 still stands on it. The stars (74-77) are drawn first, behind everything that moves: the
 original's DrawStars runs after the player is drawn, so a jump into the sky (MARS2 level 2)
-put the stars over the player.
+put the stars over the player. The turret doesn't fire into a wall at its muzzle: the
+original's bolt ends on its first step and the turret fires again, so on MARS2 level 5's
+ramp, above the wall beside the turret, the bolt's sound (much like the drip's) played every
+other frame with no bolt to be seen.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

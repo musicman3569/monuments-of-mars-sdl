@@ -2083,9 +2083,16 @@ static void m_update_turret(void)
     const float ty = (float)(lv.turret_row * 2);
     if (!bolt_active) {
         if (fabsf(ty - m_pl.y) < 7 * 2 - 1) {
-            bolt_dir = m_pl.x < (float)(lv.turret_col * 4) ? -1 : 1;
+            const int dir = m_pl.x < (float)(lv.turret_col * 4) ? -1 : 1;
+            const int x = (lv.turret_col + dir * 3) * 4, y = (int)ty;
+            /* Unlike the original, no bolt into a wall at the muzzle: it ended on its first
+             * step and the turret fired again, its sound every other frame (MARS2 level 5's
+             * ramp, the player above the turret's wall). */
+            if (m_box(x + 4, y + 8, x + 11, y + 8, W_BG))
+                return;
+            bolt_dir = dir;
             bolt_active = 1;
-            m_bolt.x = m_bolt.ox = (float)((lv.turret_col + bolt_dir * 3) * 4);
+            m_bolt.x = m_bolt.ox = (float)x;
             m_bolt.y = m_bolt.oy = ty;
             sound_bolt();
         }
