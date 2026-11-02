@@ -226,7 +226,11 @@ it with Esc.
 - Deviations: the background flashes are as brief as the original's (they set and reset the
   colour back to back), so they hardly show; after level 20 the port ends the game straight
   away, where the original first draws "LEVEL 21" over a level built from the bytes after the
-  level table; window close quits from any wait.
+  level table; window close quits from any wait; the message screens (rescue, the stone
+  face, CONGRATULATIONS!, the ending) wait for a key pressed, where the original's wait also
+  ended on a key let go, so a key held as the message came up closed it (`wait_for_key`;
+  checked in the window: an arrow held through MARS4's rescue message and let go left it up,
+  a tap of Space closed it).
 - Left out on purpose (the user has the full version): the text-mode shareware notice on
   quitting and the text-mode "incomplete version" order form shown when CF1 / CF2 are missing
   (the port shows an error box instead).

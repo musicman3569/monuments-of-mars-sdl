@@ -126,9 +126,12 @@ static uint8_t *map(void) /* the level in the level segment, which the game edit
     return gd->levels[level];
 }
 
-static void wait_for_key(void) /* while ([C8AA] == 0) */
+/* The original waits while ([C8AA] == 0), so letting go of a key (a break code) goes on too:
+ * Enter held a moment too long on the rescue terminal let go of its message at once. The
+ * port waits for a key pressed (a make code) instead. */
+static void wait_for_key(void)
 {
-    while (SC == 0 && !plat_quitting())
+    while ((SC == 0 || (SC & 0x80)) && !plat_quitting())
         delay(1);
 }
 
