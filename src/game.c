@@ -2215,11 +2215,17 @@ static void m_draw(uint8_t *buf, int n, const mpos_t *p, float a)
     blit_masked_px(buf, tile(n), (int)floorf(x), (int)floorf(y));
 }
 
-/* The frame, in the original's drawing order, into the playfield of video memory. */
+/* The frame, in the original's drawing order, into the playfield of video memory; but the
+ * stars first, behind everything that moves (the original draws them over the player). */
 static void m_render(float a)
 {
     static uint8_t buf[CGA_VRAM_SIZE];
     memcpy(buf, back1, sizeof buf);
+    for (int i = 0; i < lv.special.n; i++) {
+        const rec_t *r = &lv.special.r[i];
+        if (r->s > 0x73 && r->s < 0x78)
+            blit_masked_px(buf, tile(r->s), r->col * 4, r->row * 2);
+    }
     for (int k = 0; k < 3; k++)
         for (int i = 0; i < walkers[k].list->n; i++)
             if (walkers[k].list->r[i].s != 2)
@@ -2233,11 +2239,6 @@ static void m_render(float a)
     if (shot_active)
         m_draw(buf, 0x0B, &m_shot, a);
     m_draw(buf, frame, &m_pl, a);
-    for (int i = 0; i < lv.special.n; i++) {
-        const rec_t *r = &lv.special.r[i];
-        if (r->s > 0x73 && r->s < 0x78)
-            blit_masked_px(buf, tile(r->s), r->col * 4, r->row * 2);
-    }
     for (int i = 0; i < lv.boulders.n; i++)
         m_draw(buf, 0x6E, &m_bo[i], a);
     if (bolt_active && lv.has_turret) /* the original draws it in UpdateTurret, which stops with the turret */

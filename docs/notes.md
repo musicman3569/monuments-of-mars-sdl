@@ -591,7 +591,9 @@ ground only on the top two scanlines of its picture. The original's ground test 
 exception for them, so dropping off the block two tiles left of the MARS1 level 15 terminal
 and moving right lands on the terminal's desk, 4 px up and half in the wall above it (modern,
 testing every scanline, landed 10 px up). Landing on one from above, as in MARS2 level 10,
-still stands on it.
+still stands on it. The stars (74-77) are drawn first, behind everything that moves: the
+original's DrawStars runs after the player is drawn, so a jump into the sky (MARS2 level 2)
+put the stars over the player.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in
