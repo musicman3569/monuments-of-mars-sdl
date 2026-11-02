@@ -585,6 +585,11 @@ A switch, lever or terminal (09/0A, 0F-12, 16/17, 70) is a wall only on the scan
 original samples, 10 below the player's row, not on the wall test's scanlines 4-10: the
 original steps a byte at a time past the rest, and the level 19 switch's button (scanlines
 5-8 of its tile) otherwise kept the player off the hole beside it.
+A falling boulder whose two outer bytes are clear lands on the player when the player's box
+is under its middle. The original tests the player's sprite bytes, which reach the outer
+bytes; modern's player box is the sprite's middle 8 pixels, which a boulder straight above
+missed, so it fell into the player, who then stood on top of it (MARS2 level 6, standing
+still at the start). With one outer byte on the player, it slides off as in the original.
 
 **Fixed in modern, kept in classic** (the original does it): a switch, lever or terminal is
 ground only on the top two scanlines of its picture. The original's ground test has no

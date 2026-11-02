@@ -2127,7 +2127,11 @@ static void m_update_boulders(void)
         m_self = HIT_BOULDER + i;
         const int below_l = m_byte(x, y, W_SOLID | W_PLAYER), below_r = m_byte(x + 12, y, W_SOLID | W_PLAYER);
         m_self = 0;
-        if (!below_l && !below_r) {
+        /* Over the player's middle, it lands on them: the player's box is the middle 8 pixels
+         * of the sprite, which a boulder straight above misses with both its outer bytes, so
+         * it fell into the player, who then stood on top of it (MARS2 level 6). */
+        if (!below_l && !below_r && m_box(x + 4, y, x + 11, y, W_PLAYER)) {
+        } else if (!below_l && !below_r) {
             p->y += M_FALL * M_TICK;
         } else if (below_l && !below_r && p->x <= 0x4B * 4) {
             p->x += 2 * M_FALL * M_TICK;
