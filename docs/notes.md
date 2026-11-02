@@ -452,8 +452,8 @@ game never turns that on.
 
 ### The volumes' texts
 
-MARS2 and MARS3 have MARS1's rescue message and ending, line for line. MARS4 has its own
-(read with a throwaway decoder of the routines' SetHighFont / DrawText calls, which gives
+MARS2 and MARS3 have MARS1's rescue message and ending, line for line. MARS4 has its own,
+which the port follows (`show_rescue_message`, `show_ending`) (read with a throwaway decoder of the routines' SetHighFont / DrawText calls, which gives
 MARS1's exactly as the port draws them):
 
 - **Rescue message** (ShowRescueMessage, image 01058 in both): MARS1 draws 20 rows, row 1

@@ -550,13 +550,18 @@ static void deactivate_rings(void)
     }
 }
 
-/* ShowRescueMessage (1054:0b18): 20 lines of text over the screen; waits for a key. */
+/* ShowRescueMessage (1054:0b18): a row of text per row of the screen from row 1 (a blank one),
+ * the text from row 2; waits for a key. MARS2 and MARS3 have MARS1's text and rows; MARS4's
+ * text is shorter but it draws 24 rows, the key prompt on the last (notes.md, "The volumes'
+ * texts"). Colour 8 is a blank row. */
 static void show_rescue_message(void)
 {
-    static const int colors[20] = {8, 1, 1, 1, 8, 3, 3, 3, 8, 1, 1, 1, 8, 3, 3, 3, 3, 8, 1, 8};
+    static const int colors1[20] = {8, 1, 1, 1, 8, 3, 3, 3, 8, 1, 1, 1, 8, 3, 3, 3, 3, 8, 1, 8};
+    static const int colors4[24] = {8, 1, 1, 1, 8, 3, 3, 3, 8, 2, 2, 2, 8, 3, 8, 8, 8, 8, 8, 8, 8, 8, 8, 1};
+    const int *colors = gd->volume == 4 ? colors4 : colors1, n = gd->volume == 4 ? 24 : 20;
     const char *s = gamedata_find_string(gd, " YOU HAVE DEACTIVATED");
     draw_text(8, "                                        ", 1, 0);
-    for (int i = 1; i < 20 && s; i++, s = gamedata_next_string(gd, s))
+    for (int i = 1; i < n && s; i++, s = gamedata_next_string(gd, s))
         draw_text(colors[i], s, i + 1, 0);
     delay(200);
     SC = 0;
@@ -564,18 +569,29 @@ static void show_rescue_message(void)
     SC = 0;
 }
 
-/* 1054:0ca4: after the last level. */
+/* 1054:0ca4: after the last level. MARS4 has an ending of its own ("A SUCCESSFUL MISSION!",
+ * image 0122C there); the first and last lines are in the normal font, the rest the
+ * alternate one. */
 static void show_ending(void)
 {
-    static const struct { int color, row, col; } at[18] = {
+    typedef struct { int color, row, col; } at_t;
+    static const at_t at1[18] = {
         {3, 1, 7}, {1, 3, 0}, {1, 4, 0}, {1, 5, 0}, {1, 6, 0}, {2, 8, 6}, {2, 9, 6},
         {2, 10, 6}, {2, 11, 6}, {1, 13, 0}, {1, 14, 0}, {1, 15, 0}, {1, 16, 0}, {1, 18, 0},
         {3, 19, 0}, {1, 21, 0}, {1, 22, 0}, {2, 24, 0},
     };
+    static const at_t at4[19] = {
+        {3, 1, 9}, {3, 3, 0}, {3, 4, 0}, {1, 6, 8}, {2, 8, 0}, {2, 9, 0}, {1, 10, 6},
+        {1, 11, 6}, {1, 12, 6}, {1, 13, 6}, {2, 15, 0}, {2, 16, 0}, {2, 17, 0}, {2, 18, 0},
+        {1, 20, 12}, {1, 21, 12}, {3, 22, 3}, {3, 23, 5}, {2, 24, 0},
+    };
+    const bool vol4 = gd->volume == 4;
+    const at_t *at = vol4 ? at4 : at1;
+    const int n = vol4 ? 19 : 18;
     cga_clear(); /* ClearScreen (1054:0471) */
-    const char *s = gamedata_find_string(gd, "YOUR JOURNEY CONTINUES");
-    for (int i = 0; i < 18 && s; i++, s = gamedata_next_string(gd, s)) {
-        text_set_high_font(gd, i == 0 || i == 17 ? FONT_NORMAL : FONT_ALT);
+    const char *s = gamedata_find_string(gd, vol4 ? "A SUCCESSFUL MISSION" : "YOUR JOURNEY CONTINUES");
+    for (int i = 0; i < n && s; i++, s = gamedata_next_string(gd, s)) {
+        text_set_high_font(gd, i == 0 || i == n - 1 ? FONT_NORMAL : FONT_ALT);
         draw_text(at[i].color, s, at[i].row, at[i].col);
     }
     text_set_high_font(gd, FONT_NORMAL);
@@ -583,6 +599,48 @@ static void show_ending(void)
     SC = 0;
     wait_for_key();
     game_over = 1;
+}
+
+/* MARS2-4, code 81 (or 82) entered: the face etched in stone (image 0491D in MARS2, 04987 in
+ * MARS4), once a level ([05A6], cleared by DrawLevel). Its 19 lines of text are on rows 1-2,
+ * 4-6, 8-12, 14-18 and 20-23 in the alternate font; MARS4's text also has the blank rows
+ * between, drawn in colour 0. Then the key prompt on row 24. MARS4 then takes the stone out
+ * of the level's picture: tile 0 into back buffer 1 where DrawLevel saw the last 81
+ * ([8A27] / [8A28]). */
+static int face_shown; /* [05A6] */
+
+static void show_face_message(void)
+{
+    static const struct { int row, color; } line[19] = {
+        {1, 1}, {2, 1}, {4, 2}, {5, 2}, {6, 2}, {8, 3}, {9, 3}, {10, 3}, {11, 3}, {12, 3},
+        {14, 2}, {15, 2}, {16, 2}, {17, 2}, {18, 2}, {20, 3}, {21, 3}, {22, 3}, {23, 3},
+    };
+    face_shown = 1;
+    text_set_high_font(gd, FONT_ALT);
+    const char *s = gamedata_find_string(gd, " YOU HAVE DISCOVERED");
+    for (int k = 0; k < 19 && s; s = gamedata_next_string(gd, s)) {
+        if (strspn(s, " ") == strlen(s)) { /* MARS4's blank rows, before the next line */
+            draw_text(0, s, line[k].row - 1, 0);
+            continue;
+        }
+        draw_text(line[k].color, s, line[k].row, 0);
+        k++;
+    }
+    if (s)
+        draw_text(1, s, 24, 0); /* PRESS ANY KEY TO CONTINUE. */
+    delay(200);
+    SC = 0;
+    wait_for_key();
+    SC = 0;
+    text_set_high_font(gd, FONT_NORMAL);
+    if (gd->volume == 4) {
+        const uint8_t *m = map();
+        for (int i = LEVEL_BYTES - 1; i >= 0; i--)
+            if (m[i] == 0x81) {
+                blit_tile_buf1(tile(0), i / LEVEL_COLS * 8, i % LEVEL_COLS * 4);
+                break;
+            }
+    }
 }
 
 /* TouchTile (1054:2b08): what touching special `code` does. */
@@ -1205,6 +1263,7 @@ static void draw_level(void)
     got_m = got_a = got_r = got_s = 0;
     rings_done = 0;
     next_letter = 0;
+    face_shown = 0;
 }
 
 /* CheckLevelExit (1054:43d2): the map cell the player stands in. */
@@ -1256,8 +1315,13 @@ static void check_level_exit(void)
         flash(1);
         hide_blocks_5e();
         *cell = 0;
-    } else if ((b == 0x81 || b == 0x82) && entered) {
-        show_rescue_message();
+    } else if (b == 0x81 || b == 0x82) { /* MARS1: the rescue message; MARS2-4: the stone face */
+        if (gd->volume == 1 ? entered : !face_shown) {
+            if (gd->volume == 1)
+                show_rescue_message();
+            else
+                show_face_message();
+        }
     }
 }
 
