@@ -1469,7 +1469,8 @@ static bool near(float dx, float dy, int cols, int rows)
 enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLAT | W_BOULDER,
        W_PICKUPS_OPEN = 16, /* the level, except the pickups' pixels (only the player's tests) */
        W_BODY = W_SOLID | W_PICKUPS_OPEN, /* what the player can't move through */
-       W_SPECIALS_OPEN = 32 }; /* ... nor the walk-through specials' pixels (the step-up's test) */
+       W_SPECIALS_OPEN = 32, /* ... nor the walk-through specials' pixels (the step-up's test) */
+       W_CONTROLS_OPEN = 64 }; /* ... nor the switches', levers' and terminals' (m_wall) */
 #define HIT_BG 1
 #define HIT_VPLAT 0x100
 #define HIT_HPLAT 0x200
@@ -1496,6 +1497,12 @@ static bool is_pickup(int s)
 static bool is_walk_through(int s)
 {
     return s != 0x6E && s != 0x14 && s != 0x15 && s != 0x0D && !(s >= 0x0F && s <= 0x12);
+}
+
+/* The specials used with Enter where the player stands: the switches, levers and terminals. */
+static bool is_control(int s)
+{
+    return s == 0x09 || s == 0x0A || (s >= 0x0F && s <= 0x12) || s == 0x16 || s == 0x17 || s == 0x70;
 }
 
 /* Pixel (x, y) is in a special still in the level that `kind` picks. */
@@ -1543,7 +1550,8 @@ static int m_at(int x, int y, int what)
     if (y < 0)
         return 0;
     if ((what & W_BG) && cga_get_in(back1, x, y) && !((what & W_PICKUPS_OPEN) && m_in_special(x, y, is_pickup)) &&
-        !((what & W_SPECIALS_OPEN) && m_in_special(x, y, is_walk_through)))
+        !((what & W_SPECIALS_OPEN) && m_in_special(x, y, is_walk_through)) &&
+        !((what & W_CONTROLS_OPEN) && m_in_special(x, y, is_control)))
         return HIT_BG;
     if (what & W_PLAT) {
         for (int i = 0; i < lv.vplat.n; i++)
@@ -1618,6 +1626,18 @@ static int m_head(int x, int y)
 }
 
 /* ------------------------------------------- the player */
+
+/* A wall at column x for the player at height y: scanlines 4-10 of the sprite, but a switch,
+ * lever or terminal only where the original samples, the scanline 10 below its row. The
+ * original steps a byte at a time past what's above that line, which is how the player gets
+ * by the level 19 switch's button to the hole beside it. */
+static int m_wall(int x, float y)
+{
+    const int y0 = (int)floorf(y);
+    const int h = m_box(x, y0 + 4, x, y0 + 10, W_BODY | W_CONTROLS_OPEN);
+    const int wy = to_row(y) * 2 + 10;
+    return h || !m_in_special(x, wy, is_control) ? h : m_at(x, wy, W_BODY);
+}
 
 /* Something the player stands on moved by (dx, dy): go with it, unless a wall or the ceiling
  * is in the way. */
@@ -1860,8 +1880,8 @@ static void m_update_player(void)
     m_update_shot();
 
     int x = (int)floorf(m_pl.x), y = (int)floorf(m_pl.y);
-    m_wall_l = m_box(x + 3, y + 4, x + 3, y + 10, W_BODY);
-    m_wall_r = m_box(x + 12, y + 4, x + 12, y + 10, W_BODY);
+    m_wall_l = m_wall(x + 3, m_pl.y);
+    m_wall_r = m_wall(x + 12, m_pl.y);
     m_ceiling = m_head(x, y);
     m_sync_player();
     m_take_pickups();

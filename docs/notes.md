@@ -581,6 +581,10 @@ lifted the player onto the MARS1 level 13, 19 and 20 terminals.
 The turret's bolt is drawn only while the turret stands: the original draws it in
 UpdateTurret, which does nothing once the generator (6F) is shot, so a bolt in flight then
 vanishes (its flag stays set, unseen). Drawn on its own, it hung in the air (MARS1 level 17).
+A switch, lever or terminal (09/0A, 0F-12, 16/17, 70) is a wall only on the scanline the
+original samples, 10 below the player's row, not on the wall test's scanlines 4-10: the
+original steps a byte at a time past the rest, and the level 19 switch's button (scanlines
+5-8 of its tile) otherwise kept the player off the hole beside it.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

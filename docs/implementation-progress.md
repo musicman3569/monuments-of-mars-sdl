@@ -247,7 +247,8 @@ it with Esc.
   regression runs are unchanged. Play-tested by the user throughout (the fixes since: the
   level 4 exit, the jump's fresh press, pushing, the landing and walking pictures, pickups,
   enemies' hits, the shot's fresh press, the vertical platforms turning on boulders, walking
-  through terminals, the bolt vanishing with its turret).
+  through terminals, the bolt vanishing with its turret, getting past the switches'
+  buttons).
 - The CRT look: the code is realms-of-chaos-port's, checked there against a numpy version of
   the shaders. Here: the screenshots without it are byte for byte as before, with it they
   look right (level 5, the title), the window opens with it (Direct3D, mask drawn) and the
