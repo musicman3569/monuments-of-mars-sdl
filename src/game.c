@@ -2179,7 +2179,7 @@ static void m_render(float a)
     }
     for (int i = 0; i < lv.boulders.n; i++)
         m_draw(buf, 0x6E, &m_bo[i], a);
-    if (bolt_active)
+    if (bolt_active && lv.has_turret) /* the original draws it in UpdateTurret, which stops with the turret */
         m_draw(buf, 0x2A, &m_bolt, a);
     for (int i = 0; i < m_nfx; i++)
         blit_masked_px(buf, tile(0x2A + (int)m_fx[i].t), (int)floorf(m_fx[i].x), (int)floorf(m_fx[i].y));
