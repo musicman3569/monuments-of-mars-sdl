@@ -573,6 +573,11 @@ the marks are looked for in buffer 2 as the original has it then: the level with
 drawn over it, so a boulder's solid top turns a platform (the level 13 platform over the stack
 of boulders). Tested on every scanline, the other level 13 platform turned 12 px early on the
 odd scanlines of the ledge's underside.
+The step-up doesn't climb the pixels of a special that FindSpecialTileAt answers with its
+code (a terminal, a lever, a switch, a hazard; not the doors, the field switches 0F-12, the
+boulders or the surface). The original finds the special, and so doesn't climb, as soon as
+its feet reach it; a pixel test on the rounded byte column reaches it a column earlier, and
+lifted the player onto the MARS1 level 13, 19 and 20 terminals.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

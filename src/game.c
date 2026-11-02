@@ -1468,7 +1468,8 @@ static bool near(float dx, float dy, int cols, int rows)
 
 enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLAT | W_BOULDER,
        W_PICKUPS_OPEN = 16, /* the level, except the pickups' pixels (only the player's tests) */
-       W_BODY = W_SOLID | W_PICKUPS_OPEN }; /* what the player can't move through */
+       W_BODY = W_SOLID | W_PICKUPS_OPEN, /* what the player can't move through */
+       W_SPECIALS_OPEN = 32 }; /* ... nor the walk-through specials' pixels (the step-up's test) */
 #define HIT_BG 1
 #define HIT_VPLAT 0x100
 #define HIT_HPLAT 0x200
@@ -1490,12 +1491,19 @@ static bool is_pickup(int s)
     return s == 0x0C || s == 0x0E || s == 0x3A || (s >= 0x56 && s <= 0x59) || s == 0x5F;
 }
 
-/* Pixel (x, y) is in a pickup still in the level. */
-static bool m_in_pickup(int x, int y)
+/* The specials FindSpecialTileAt answers with their code, which the step-up doesn't climb:
+ * all but the boulders, the surface, the door and the field switches (0F-12). */
+static bool is_walk_through(int s)
+{
+    return s != 0x6E && s != 0x14 && s != 0x15 && s != 0x0D && !(s >= 0x0F && s <= 0x12);
+}
+
+/* Pixel (x, y) is in a special still in the level that `kind` picks. */
+static bool m_in_special(int x, int y, bool (*kind)(int))
 {
     for (int i = 0; i < lv.special.n; i++) {
         const rec_t *r = &lv.special.r[i];
-        if (lv.special_active[i] && is_pickup(r->s) && x >= r->col * 4 && x < r->col * 4 + 16 &&
+        if (lv.special_active[i] && kind(r->s) && x >= r->col * 4 && x < r->col * 4 + 16 &&
             y >= r->row * 2 && y < r->row * 2 + 16)
             return true;
     }
@@ -1534,7 +1542,8 @@ static int m_at(int x, int y, int what)
         return HIT_BG;
     if (y < 0)
         return 0;
-    if ((what & W_BG) && cga_get_in(back1, x, y) && !((what & W_PICKUPS_OPEN) && m_in_pickup(x, y)))
+    if ((what & W_BG) && cga_get_in(back1, x, y) && !((what & W_PICKUPS_OPEN) && m_in_special(x, y, is_pickup)) &&
+        !((what & W_SPECIALS_OPEN) && m_in_special(x, y, is_walk_through)))
         return HIT_BG;
     if (what & W_PLAT) {
         for (int i = 0; i < lv.vplat.n; i++)
@@ -1900,8 +1909,11 @@ static void m_update_player(void)
         const int c = find_special_at((uint8_t)py, (uint8_t)px);
         touch_tile(c);
         if (!m_ceiling) {
+            /* Not onto a terminal, a lever and the like: the original finds the special (and
+             * doesn't climb) as soon as its feet reach it, but at the byte column rounded, a
+             * pixel test reaches it first. */
             for (int k = 0; c == 0 && k < M_STEP_UP && !m_head(x, y) &&
-                            m_box(x + 4, y + 11, x + 11, y + 15, W_BODY); k++)
+                            m_box(x + 4, y + 11, x + 11, y + 15, W_BODY | W_SPECIALS_OPEN); k++)
                 m_pl.y = (float)--y;
             on_ground = 1;
             can_jump = 1;
