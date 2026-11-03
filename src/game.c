@@ -1821,9 +1821,13 @@ static void m_update_shot(void)
         shot_hit(&map()[(y / 2 + 3) / 8 * LEVEL_COLS + hit_x / 16]);
 }
 
-static bool lets_jump_on(int c) /* the specials a jump carries on through (and pickups) */
+/* The specials a jump carries on through: the original's, and pickups, and the dripping
+ * pipes (13, 18, 19), which otherwise ended a jump 3 byte columns away and 7 rows below
+ * their tile, well short of their pixels (m_head stops it there). */
+static bool lets_jump_on(int c)
 {
-    return c == 0 || c == 0x16 || c == 0x17 || c == 0x0A || c == 0x09 || is_pickup(c);
+    return c == 0 || c == 0x16 || c == 0x17 || c == 0x0A || c == 0x09 || is_pickup(c) || c == 0x13 ||
+           c == 0x18 || c == 0x19;
 }
 
 /* The pickups the player overlaps, by FindSpecialTileAt's reach (3 byte columns, 8 rows): with

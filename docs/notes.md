@@ -601,7 +601,11 @@ original's DrawStars runs after the player is drawn, so a jump into the sky (MAR
 put the stars over the player. The turret doesn't fire into a wall at its muzzle: the
 original's bolt ends on its first step and the turret fires again, so on MARS2 level 5's
 ramp, above the wall beside the turret, the bolt's sound (much like the drip's) played every
-other frame with no bolt to be seen.
+other frame with no bolt to be seen. A jump carries on past the dripping pipes (13, 18, 19):
+the original ends a rising jump on any special FindSpecialTileAt finds but a few (switches,
+levers), and its reach (3 byte columns, 7 rows) stopped a jump under a pipe with the head
+about 5 px below its pixels, or beside it (MARS2 level 7, the 5C blocks under the pipes).
+Modern's head test now stops it at the pipe's pixels.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in
