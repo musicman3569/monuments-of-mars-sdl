@@ -333,7 +333,9 @@ A sample above the top of buffer 2 reads back buffer 1's last rows, which sit ju
   turret becomes tile 6C and stops.
 - **Boulders** (6E): fall when nothing is under them, slide diagonally off an edge, and are
   pushed a byte when the sampled byte beside them looks like the player's sprite (0B, 02 or
-  FF on the right; 80, E0 or FF on the left). They stop the shot and the bolt.
+  FF on the right; 80, E0 or FF on the left). They stop the shot and the bolt. An enemy's
+  bytes can pass for the player's: the MARS2 level 12 robot, walking right into a boulder,
+  pushes it along ahead of itself to the wall (walking left into one, it turns).
 - **The shot** (tile 0B, 2 bytes per frame) samples back buffer 1 at row +4 in front of it;
   if anything is there it looks up the map cell: switches 0F-12 flip, levers flip when shot
   from the side they lean (16 from the left, 17 from the right), 6F destroys the turret; codes
@@ -643,10 +645,13 @@ so does a shot (the original fires again as soon as a shot ends while fire is he
 up to 2 frames before the last shot ends firing as it does;
 turning doesn't cost a frame; standing on a platform moves with it
 exactly (the original rides horizontal ones and is pushed up by vertical ones through the
-step-up); walking into a boulder pushes it at walking speed when nothing is on its other side, kept
+step-up); walking into a boulder pushes it at walking speed when nothing, an enemy included, is on its
+other side (without that, MARS2 level 12's robot ended up inside the boulder, and through it
+on the player), kept
 exactly against the player (moved separately, the two round to whole pixels on different
 steps and the boulder's edge lifts the feet)
-(the original recognises the player's sprite bytes beside it); the enemy explosion plays its 5
+(the original recognises the player's sprite bytes beside it, which a robot's can pass for,
+so a robot can push one too; in modern only the player does); the enemy explosion plays its 5
 tiles over 5 frames instead of drawing them all in one; Enter acts once per press (the
 original acts every frame it is held, with a 200 ms pause to slow that down, which modern
 drops); the rescue message shows on entering its cell rather than every frame on it. Sound

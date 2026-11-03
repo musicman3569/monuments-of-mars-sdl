@@ -1478,12 +1478,14 @@ enum { W_BG = 1, W_PLAT = 2, W_BOULDER = 4, W_PLAYER = 8, W_SOLID = W_BG | W_PLA
        W_PICKUPS_OPEN = 16, /* the level, except the pickups' pixels (only the player's tests) */
        W_BODY = W_SOLID | W_PICKUPS_OPEN, /* what the player can't move through */
        W_SPECIALS_OPEN = 32, /* ... nor the walk-through specials' pixels (the step-up's test) */
-       W_CONTROLS_OPEN = 64 }; /* ... nor the switches', levers' and terminals' (m_wall, m_ground) */
+       W_CONTROLS_OPEN = 64, /* ... nor the switches', levers' and terminals' (m_wall, m_ground) */
+       W_WALKER = 128 }; /* the enemies' pixels (m_pushable) */
 #define HIT_BG 1
 #define HIT_VPLAT 0x100
 #define HIT_HPLAT 0x200
 #define HIT_BOULDER 0x300
 #define HIT_PLAYER 0x400
+#define HIT_WALKER 0x500
 static int m_self; /* the thing asking, which doesn't see itself */
 
 /* The colour of pixel (lx, ly) of tile n, 0 where it has none. */
@@ -1587,6 +1589,11 @@ static int m_at(int x, int y, int what)
         if (x >= x0 + 4 && x < x0 + 12 && y >= y0 && y < y0 + 16)
             return HIT_PLAYER;
     }
+    if (what & W_WALKER)
+        for (int k = 0; k < 3; k++)
+            for (int i = 0; i < walkers[k].list->n; i++)
+                if (walkers[k].list->r[i].s != 2 && in_sprite(&m_wk[k][i], walkers[k].first_tile + m_wframe[k], x, y))
+                    return HIT_WALKER;
     return 0;
 }
 
@@ -1747,7 +1754,9 @@ static void m_update_hplatforms(void)
 }
 
 /* The boulder the player is walking into, if it can be pushed along: nothing on its other
- * side. */
+ * side, an enemy included. (Only the player pushes here, so an enemy can't; but pushed into one
+ * walking away, a boulder went into and past it, and the enemy then came through to the player:
+ * MARS2 level 12. The original's push wants nothing on the far side either.) */
 static mpos_t *m_pushable(int dir)
 {
     const int hit = dir < 0 ? m_wall_l : m_wall_r;
@@ -1756,8 +1765,8 @@ static mpos_t *m_pushable(int dir)
     mpos_t *p = &m_bo[hit - HIT_BOULDER];
     const int x = (int)floorf(p->x), y = (int)floorf(p->y);
     m_self = hit;
-    const bool blocked = dir < 0 ? p->x <= 0 || m_box(x - 1, y + 3, x - 1, y + 12, W_SOLID)
-                                 : p->x >= M_MAX_X || m_box(x + 16, y + 3, x + 16, y + 12, W_SOLID);
+    const bool blocked = dir < 0 ? p->x <= 0 || m_box(x - 1, y + 3, x - 1, y + 12, W_SOLID | W_WALKER)
+                                 : p->x >= M_MAX_X || m_box(x + 16, y + 3, x + 16, y + 12, W_SOLID | W_WALKER);
     m_self = 0;
     return blocked ? NULL : p;
 }
