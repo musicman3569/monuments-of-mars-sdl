@@ -2009,7 +2009,10 @@ static void m_update_player(void)
 /* ------------------------------------------- everything else */
 
 /* UpdateEnemies49 / 4A / 4B. The tests are the original's bytes, on the level and the
- * boulders; a turn takes the step, as the original's takes the frame. */
+ * boulders, at whole byte columns as the original's byte steps have them: going right the
+ * column its edge is in, going left the one it has reached. (4 pixels from the exact position
+ * fell between the sparse pixels of MARS2 level 15's floor, and its walkers turned after 2 px.)
+ * A turn takes the step, as the original's takes the frame. */
 static void m_update_walkers(int k)
 {
     const walker_t *w = &walkers[k];
@@ -2020,22 +2023,23 @@ static void m_update_walkers(int k)
         mpos_t *p = &m_wk[k][i];
         if (r->s == 2)
             continue;
-        const int x = (int)floorf(p->x), y = (int)floorf(p->y), what = W_BG | W_BOULDER;
+        const int xl = 4 * (int)ceilf(p->x / 4), xr = (int)floorf(p->x) & ~3, y = (int)floorf(p->y);
+        const int what = W_BG | W_BOULDER;
         int probe_l, probe_r, wall_l, wall_r;
         if (w->kind == 0x49) { /* the ceiling ahead; a wall ahead */
-            probe_l = m_byte(x - 4, y - 2, what);
-            probe_r = m_byte(x + 16, y - 2, what);
-            wall_l = m_byte(x - 4, y + 2, what);
-            wall_r = m_byte(x + 16, y + 2, what);
+            probe_l = m_byte(xl - 4, y - 2, what);
+            probe_r = m_byte(xr + 16, y - 2, what);
+            wall_l = m_byte(xl - 4, y + 2, what);
+            wall_r = m_byte(xr + 16, y + 2, what);
         } else if (w->kind == 0x4A) { /* its own top row */
-            probe_l = m_byte(x, y + 2, what);
-            probe_r = m_byte(x + 12, y + 2, what);
+            probe_l = m_byte(xl, y + 2, what);
+            probe_r = m_byte(xr + 12, y + 2, what);
             wall_l = wall_r = 0;
         } else { /* the floor under it; a wall ahead */
-            probe_l = m_byte(x, y + 16, what);
-            probe_r = m_byte(x + 12, y + 16, what);
-            wall_l = m_byte(x - 4, y, what);
-            wall_r = m_byte(x + 16, y, what);
+            probe_l = m_byte(xl, y + 16, what);
+            probe_r = m_byte(xr + 12, y + 16, what);
+            wall_l = m_byte(xl - 4, y, what);
+            wall_r = m_byte(xr + 16, y, what);
         }
         const float dx = 4.0f / (float)w->tick_len * M_TICK;
         if (r->s == 1) {

@@ -575,6 +575,11 @@ the marks are looked for in buffer 2 as the original has it then: the level with
 drawn over it, so a boulder's solid top turns a platform (the level 13 platform over the stack
 of boulders). Tested on every scanline, the other level 13 platform turned 12 px early on the
 odd scanlines of the ledge's underside.
+The walkers (49, 4A, 4B) likewise test the original's bytes at whole byte columns: going right
+the column their edge is in, going left the one they have reached (the original steps a byte,
+then tests where it is), so they turn where the original's do. Tested on the 4 pixels from the
+exact position, the MARS2 level 15 floor walkers turned after 2 px instead of 12: the floor's
+pixels are sparse, and that window fell between them where the original's bytes don't.
 The step-up doesn't climb the pixels of a special that FindSpecialTileAt answers with its
 code (a terminal, a lever, a switch, a hazard; not the doors, the field switches 0F-12, the
 boulders or the surface). The original finds the special, and so doesn't climb, as soon as
