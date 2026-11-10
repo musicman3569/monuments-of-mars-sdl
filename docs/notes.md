@@ -551,9 +551,14 @@ vertical platforms 1, horizontal 4/3, the crawler (49) 4/3, robots and floor wal
 4B) 2, drips 2, the bolt 4, the shot 8, boulders falling 2 (sliding off an edge, 4 across).
 The jump keeps the original's two parts as straight lines through its steps: gravity
 `min(4, t / 2)` rows per frame, t counting frames in the air (FallV >> 1), and the jump's
-push `13/3 - t / 6` (the (9 - JumpT) >> 1 steps, JumpT counting every 3 frames). That rises
-14 rows (28 px), the original's height, in the same time: a scripted standing jump lands on
-the same rows frame for frame, and a running one at the same places.
+push `13/3 - t / 6` (the (9 - JumpT) >> 1 steps, JumpT counting every 3 frames). In a jump,
+gravity starts a frame after the push: the original draws the player, and tests what it
+meets, after a frame's push and before that frame's gravity, so the jump it shows rises 17
+rows (34 px) and stays up 3 frames longer than its end-of-frame row says (14 rows). Matching
+that row instead, modern's jump was 6 px lower than the one seen, and the MARS2 level 15 jump
+from the platform over the dripping pipe up onto the one with the pipe under it, which the
+original makes by catching the platform's corner on the way down, fell short. (A fall off a
+ledge needs no such shift: its first frame doesn't move in either.)
 
 **Collision** keeps the original's test points, in pixels and at every step: walls are the
 column 3 px in from either side of the sprite (where its outer bytes end), over scanlines
@@ -613,6 +618,13 @@ the original ends a rising jump on any special FindSpecialTileAt finds but a few
 levers), and its reach (3 byte columns, 7 rows) stopped a jump under a pipe with the head
 about 5 px below its pixels, or beside it (MARS2 level 7, the 5C blocks under the pipes).
 Modern's head test now stops it at the pipe's pixels.
+A wall that isn't a special's pixels is a wall: the original lets the player walk on into
+any blocking pixel when FindSpecialTileAt finds a special within reach, even some other thing
+than the wall. Classic never meets this on MARS2 level 15, where the +3 shots above ends its
+jump early, but modern's jump carries on past pickups and rose beside the dripping pipe, then
+walked into the solid block above the pipe (the pipe was found) and stood on the pipe inside
+it, short of the platform the jump is for. Now it stops at the block and drops onto that
+platform.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

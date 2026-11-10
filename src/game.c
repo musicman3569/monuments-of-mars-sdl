@@ -1687,6 +1687,17 @@ static int m_wall(int x, float y)
     return h || !m_in_special(x, wy, is_control) ? h : m_at(x, wy, W_BODY);
 }
 
+/* The wall at column x is the level's own, not a special's pixels: no special found nearby lets
+ * the player through it. (The original lets the player walk on into a wall whenever
+ * FindSpecialTileAt finds a special within its reach, which can be some other thing than the
+ * wall: on MARS2 level 15 a jump that rises its full height beside the dripping pipe walked into
+ * the solid block above it.) */
+static bool m_wall_not_special(int x, float y)
+{
+    const int y0 = (int)floorf(y);
+    return m_box(x, y0 + 4, x, y0 + 10, W_BODY | W_SPECIALS_OPEN | W_CONTROLS_OPEN) != 0;
+}
+
 /* Something the player stands on moved by (dx, dy): go with it, unless a wall or the ceiling
  * is in the way. */
 static void m_carry(int id, float dx, float dy)
@@ -1891,7 +1902,7 @@ static void m_update_player(void)
         on_ground = 0;
         can_jump = 0;
         m_jump = 0;
-        m_air = 0;
+        m_air = -1; /* gravity a frame behind the push (below) */
         m_jump_press = 0;
         sound_jump();
     }
@@ -1922,10 +1933,15 @@ static void m_update_player(void)
     }
     /* Rows per frame down. Gravity is FallV >> 1, FallV counting up a frame at a time to 8;
      * the jump's push is (9 - JumpT) >> 1, JumpT counting up every 3 frames. These are the
-     * straight lines through the original's steps, which reach the same height (28 px). */
+     * straight lines through the original's steps. The original draws the player, and tests
+     * what it meets, after a frame's push and before its gravity, so the jump it shows and
+     * collides rises 17 rows (34 px) and stays up 3 frames longer than its end-of-frame row
+     * (14 rows): gravity starts a frame after the push. Matching the end-of-frame row, the
+     * jump fell 6 px short of the platform corner the MARS2 level 15 jump up from the dripping
+     * pipe's platform climbs onto. */
     float v = 0;
     if (!on_ground)
-        v += fminf(4, m_air / 2);
+        v += fminf(4, fmaxf(m_air, 0) / 2);
     if (pushing)
         v -= 13.0f / 3 - m_jump / 6;
     m_move_player_y(v * 2 * M_TICK);
@@ -1944,7 +1960,7 @@ static void m_update_player(void)
     } else {
         const int c = find_special_at((uint8_t)py, (uint8_t)(px - 1));
         touch_tile(c);
-        if (c == 0)
+        if (c == 0 || m_wall_not_special(x + 3, m_pl.y))
             can_left = 0;
     }
     if (!m_wall_r) {
@@ -1952,7 +1968,7 @@ static void m_update_player(void)
     } else {
         const int c = find_special_at((uint8_t)py, (uint8_t)(px + 1));
         touch_tile(c);
-        if (c == 0)
+        if (c == 0 || m_wall_not_special(x + 12, m_pl.y))
             can_right = 0;
     }
 
