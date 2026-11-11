@@ -102,7 +102,10 @@ Saves keep the values from the **start** of the level, so restoring restarts tha
   55, 56-59 and 6F are entities *and* drawn.
 - Bytes 09-46, 56-59, 6E, 70 and 74-77 also go into the **specials** list at 2354:C9A8
   (`code, col, row`, count [C92F]) with an active flag at 2354:CC00 (0 for the stars): what
-  `FindSpecialTileAt` / `TouchTile` act on, and what AnimateTiles animates (34-46).
+  `FindSpecialTileAt` / `TouchTile` act on, and what AnimateTiles animates (34-46). It has
+  room for 200 (600 bytes up to the flags). The most any level has is MARS3 level 8's 70,
+  most of them stars; the port's lists held 64 until that level's last six (its force fields,
+  rings and switch, along the bottom) were found doing nothing.
 - 18 and 19 come in pairs on a row: 18 marks the left end, 19 the right end, stored as
   `width, col, row` at 2354:4947: the dripping ceilings.
 - The game edits the level **in the level segment** (switches, levers, blocks, gems) and puts

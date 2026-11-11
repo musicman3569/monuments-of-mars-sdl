@@ -6,7 +6,10 @@
 
 #include "gamedata.h"
 
-#define MAX_LIST 64
+/* Room for every cell of the map (20 x 12). The original's specials list (DS:C9A8, up to its
+ * flags at CC00) holds 200; 64 here dropped the end of MARS3 level 8's 70, its stars counted:
+ * the force fields, the rings and the switch along the bottom did nothing. */
+#define MAX_LIST 240
 
 /* The game's 3-byte records: state or code, byte column, row (scanline pairs). */
 typedef struct {
