@@ -585,6 +585,18 @@ the column their edge is in, going left the one they have reached (the original 
 then tests where it is), so they turn where the original's do. Tested on the 4 pixels from the
 exact position, the MARS2 level 15 floor walkers turned after 2 px instead of 12: the floor's
 pixels are sparse, and that window fell between them where the original's bytes don't.
+The horizontal platforms turn as the original's do: at the right edge once past column 4Bh,
+so they reach 4Ch (304 px), and a turn takes the move it is made on. They then wait 6 frames
+before going back, the time the original's stays put at its last byte (the turn's tick, then
+the next) before it jumps a whole byte back; moving back linearly at once, a platform is under
+pixels it left again well before the original's is. A wall that stays put and stops the carry
+also stops the player taking the platform's fraction of a pixel, which otherwise kept the two
+together; another platform beside the player doesn't (MARS1 level 18's pair at one height,
+moving together, would hold the player back from the one they ride). On
+MARS3 level 4, the first platform carries an idle player to the wall on its right and slides
+on from under them, and they fall to the spikes. Modern went on into the wall with it; then,
+stopped, it turned 4 px early and came back under the player before they had fallen out of the
+step-up's reach. (The wait makes a platform's round trip 6 frames longer than the original's.)
 The step-up doesn't climb the pixels of a special that FindSpecialTileAt answers with its
 code (a terminal, a lever, a switch, a hazard; not the doors, the field switches 0F-12, the
 boulders or the surface). The original finds the special, and so doesn't climb, as soon as
@@ -625,6 +637,15 @@ jump early, but modern's jump carries on past pickups and rose beside the drippi
 walked into the solid block above the pipe (the pipe was found) and stood on the pipe inside
 it, short of the platform the jump is for. Now it stops at the block and drops onto that
 platform.
+While a jump is still rising, its feet don't land or step up on what they reach; it lands on
+the way down. The original tests its walls once a frame and moves a byte at the next, by when
+the jump has risen another 2 rows or so, so a jump that clears a ledge's side goes on over its
+top. Modern slid on the moment its wall test cleared, and its feet caught the ledge's corner 2
+rows below the top, which ended the jump there: jumping right from the last step of MARS1 level
+12's stair by the terminal, up past the end of the girder above it, the original rises over
+the girder and comes down onto it, and modern stopped dead on its top. (Stepped up out of the
+corner instead of passing it, the jump rose 5 px higher than the original's.) The walls and the
+ceiling still stop the body as before.
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

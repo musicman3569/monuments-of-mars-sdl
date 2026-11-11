@@ -1418,6 +1418,7 @@ typedef struct {
 
 static mpos_t m_pl, m_shot, m_bolt, m_drip;
 static mpos_t m_vp[MAX_LIST], m_hp[MAX_LIST], m_bo[MAX_LIST], m_wk[3][MAX_LIST];
+static float m_hp_wait[MAX_LIST]; /* frames a horizontal platform still waits at a turn */
 static float m_air;      /* frames since the feet left the ground: gravity's speed (FallV) */
 static float m_jump;     /* frames since the jump started: its push (JumpT) */
 static float m_walked;   /* px walked, for the walking frames */
@@ -1698,6 +1699,11 @@ static bool m_wall_not_special(int x, float y)
     return m_box(x, y0 + 4, x, y0 + 10, W_BODY | W_SPECIALS_OPEN | W_CONTROLS_OPEN) != 0;
 }
 
+static bool m_is_platform(int hit)
+{
+    return hit >= HIT_VPLAT && hit < HIT_BOULDER;
+}
+
 /* Something the player stands on moved by (dx, dy): go with it, unless a wall or the ceiling
  * is in the way. */
 static void m_carry(int id, float dx, float dy)
@@ -1739,7 +1745,13 @@ static void m_update_vplatforms(void)
     }
 }
 
-/* UpdateHPlatforms: state 1 left, 0 right, turning at a mark or the edge. */
+/* UpdateHPlatforms: state 1 left, 0 right, turning at a mark or the edge. The original turns
+ * at the right edge once past column 4Bh, so it goes on to column 4Ch (304 px): MARS3 level 4's
+ * first platform needs that byte to slide out from under a player the wall stops. A turn takes
+ * one of its moves (a byte every 3rd frame), and the original's then stays on its last byte
+ * until the next before it jumps a whole byte back: 6 frames in all before it is under what it
+ * left again. Moving back linearly after 3, it was under the player again before they had
+ * fallen out of the step-up's reach. (So a round trip takes 6 frames more than the original's.) */
 static void m_update_hplatforms(void)
 {
     for (int i = 0; i < lv.hplat.n; i++) {
@@ -1747,16 +1759,22 @@ static void m_update_hplatforms(void)
         mpos_t *p = &m_hp[i];
         const int x = (int)floorf(p->x), y = (int)floorf(p->y);
         float dx = 0;
-        if (r->s == 1) {
-            if (m_ff(x - 4, y + 2) || p->x <= 0)
+        if (m_hp_wait[i] > 0) {
+            m_hp_wait[i] -= M_TICK;
+        } else if (r->s == 1) {
+            if (m_ff(x - 4, y + 2) || p->x <= 0) {
                 r->s = 0;
-            else
+                m_hp_wait[i] = 6;
+            } else {
                 dx = -M_HPLAT * M_TICK;
+            }
         } else if (r->s == 0) {
-            if (m_ff(x + 16, y + 2) || p->x > 0x4B * 4)
+            if (m_ff(x + 16, y + 2) || p->x >= 0x4C * 4) {
                 r->s = 1;
-            else
+                m_hp_wait[i] = 6;
+            } else {
                 dx = M_HPLAT * M_TICK;
+            }
         }
         p->x += dx;
         r->col = (uint8_t)to_col(p->x);
@@ -1944,6 +1962,7 @@ static void m_update_player(void)
         v += fminf(4, fmaxf(m_air, 0) / 2);
     if (pushing)
         v -= 13.0f / 3 - m_jump / 6;
+    const bool rising = v < 0;
     m_move_player_y(v * 2 * M_TICK);
     m_pl.y = fminf(fmaxf(m_pl.y, 0), M_MAX_Y);
 
@@ -1980,7 +1999,14 @@ static void m_update_player(void)
                 m_pl.y = (float)y;
                 m_sync_player();
             }
-    if (!ground) { /* falling */
+    /* Still rising, a jump goes on past what its feet reach (neither landing nor stepping up);
+     * it lands on the way down. The original moves a byte at a time, a frame after its wall
+     * test clears, by when its jump has risen another 2 rows or so: jumping right up past the
+     * end of the MARS1 level 12 girder by the terminal, it rises over the girder's top and
+     * comes down onto it. Modern slides on as the wall clears, and its feet caught the corner
+     * 2 rows below the top, which ended the jump there. (Stepped up out of it instead, the jump
+     * went 5 px higher than the original's.) The walls still stop the body. */
+    if (!ground || rising) { /* falling, or rising */
         on_ground = 0;
         m_air += M_TICK;
         m_support = 0;
@@ -1995,7 +2021,7 @@ static void m_update_player(void)
         m_jump = 0;
         m_support = ground;
     }
-    if (m_box(x + 4, y + 11, x + 11, y + 15, W_BODY | W_CONTROLS_OPEN)) { /* feet in the floor: step up */
+    if (!rising && m_box(x + 4, y + 11, x + 11, y + 15, W_BODY | W_CONTROLS_OPEN)) { /* feet in the floor: step up */
         const int c = find_special_at((uint8_t)py, (uint8_t)px);
         touch_tile(c);
         if (!m_ceiling) {
@@ -2013,11 +2039,20 @@ static void m_update_player(void)
             m_sync_player();
         }
     }
-    /* Standing on a platform: take its fraction of a pixel, so the two move as one. */
+    /* Standing on a platform: take its fraction of a pixel, so the two move as one. Not across
+     * while a wall that stays put stops the carry (m_carry): the platform then slides on from
+     * under the player, as in the original (MARS3 level 4's first platform takes the player to
+     * the wall on its right and on out from under them, over the spikes). Snapped to it, the
+     * player went on into the wall with it. Another platform beside the player moves on by
+     * itself, so it doesn't count (MARS1 level 18's pair at the same height, going together). */
     if (on_ground && m_support >= HIT_VPLAT && m_support < HIT_BOULDER) {
-        const mpos_t *p = m_support < HIT_HPLAT ? &m_vp[m_support - HIT_VPLAT] : &m_hp[m_support - HIT_HPLAT];
+        const bool h = m_support >= HIT_HPLAT;
+        const mpos_t *p = h ? &m_hp[m_support - HIT_HPLAT] : &m_vp[m_support - HIT_VPLAT];
         m_pl.y = p->y + (float)(y - (int)floorf(p->y));
-        if (!dir)
+        const int s = h ? lv.hplat.r[m_support - HIT_HPLAT].s : -1;
+        const bool held = (s == 0 && !can_right && !m_is_platform(m_wall_r)) ||
+                          (s == 1 && !can_left && !m_is_platform(m_wall_l));
+        if (!dir && !held)
             m_pl.x = p->x + roundf(m_pl.x - p->x);
     }
 }
@@ -2197,6 +2232,7 @@ static void m_start_level(void)
             p->y = p->oy = (float)(lists[k].l->r[i].row * 2);
         }
     m_air = m_jump = m_tiles = m_jump_press = m_fire_press = 0;
+    memset(m_hp_wait, 0, sizeof m_hp_wait);
     m_jump_was_held = K.jump; /* a jump or shot held through a restart doesn't count */
     m_fire_was_held = K.fire;
     m_support = m_wall_l = m_wall_r = m_ceiling = 0;
