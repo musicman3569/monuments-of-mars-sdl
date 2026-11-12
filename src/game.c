@@ -1628,12 +1628,32 @@ static int m_colour(int x, int y)
     return cga_get_in(back1, x, y);
 }
 
+/* Pixel (x, y) is in an animated special (34h-46h, three frames a tile) and isn't colour 3 in
+ * every frame. */
+static bool m_anim_not_3(int x, int y)
+{
+    for (int i = 0; i < lv.special.n; i++) {
+        const rec_t *r = &lv.special.r[i];
+        const int lx = x - r->col * 4, ly = y - r->row * 2;
+        if (lv.special_active[i] && r->s > 0x33 && r->s < 0x47 && lx >= 0 && lx < 16 && ly >= 0 && ly < 16)
+            for (int f = 0; f < 3; f++)
+                if (tile_pixel(r->s + f, lx, ly) != 3)
+                    return true;
+    }
+    return false;
+}
+
 /* ... and its "FFh" tests, the platforms' turning marks: 4 pixels of colour 3, which a
- * boulder's top also has (the level 13 platform turns on the stack of boulders under it). */
+ * boulder's top also has (the level 13 platform turns on the stack of boulders under it).
+ * An animated tile's pixels count only when colour 3 in all its frames: the original tests a
+ * mark once per row, so which frame it sees is down to its timing, where these tests run every
+ * step and catch them all. MARS4 level 15's gem has a colour-3 base in one frame, which turned
+ * the elevator back up each time it set off down, right under the top. */
 static bool m_ff(int x, int y)
 {
     for (int i = 0; i < 4; i++)
-        if (x + i < 0 || x + i >= CGA_W || y < 0 || y >= PLAYFIELD_LINES || m_colour(x + i, y) != 3)
+        if (x + i < 0 || x + i >= CGA_W || y < 0 || y >= PLAYFIELD_LINES || m_colour(x + i, y) != 3 ||
+            m_anim_not_3(x + i, y))
             return false;
     return true;
 }

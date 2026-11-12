@@ -582,7 +582,12 @@ The vertical platforms likewise test their turning marks at their row's even sca
 the marks are looked for in buffer 2 as the original has it then: the level with the boulders
 drawn over it, so a boulder's solid top turns a platform (the level 13 platform over the stack
 of boulders). Tested on every scanline, the other level 13 platform turned 12 px early on the
-odd scanlines of the ledge's underside.
+odd scanlines of the ledge's underside. An animated tile (34h-46h) is a mark only where it is
+colour 3 in all three frames: the original tests a row once, on whichever frame its timing
+gives it, where the port tests every step and sees them all. MARS4 level 15's elevator passes
+a gem with a frame whose base is solid colour 3, just under the top of its run; the original
+always reaches that row on another frame, and the port's elevator turned back up there each
+time it set off down.
 The walkers (49, 4A, 4B) likewise test the original's bytes at whole byte columns: going right
 the column their edge is in, going left the one they have reached (the original steps a byte,
 then tests where it is), so they turn where the original's do. Tested on the 4 pixels from the
