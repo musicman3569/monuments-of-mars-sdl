@@ -24,7 +24,7 @@ run natively on modern systems in C11 and SDL2.
 | `tools/`    | Python helpers: unpacker, Ghidra dump/rename/annotate, graphics extractor |
 | `analysis/` | Ghidra function names (`MARS1.names.txt`)                       |
 | `docs/`     | Reverse engineering notes (`notes.md`) and the port's progress (`implementation-progress.md`) |
-| `packaging/` | The Linux AppImage's build and the Miyoo Mini's OnionUI port (both in Docker) |
+| `packaging/` | The release builds: the Windows zip, the Linux AppImage and the Miyoo Mini's OnionUI port (the last two in Docker) |
 
 ## The port
 
@@ -93,6 +93,18 @@ cmake --build build
 ```
 
 That produces `build/mars.exe` with `SDL2.dll` copied next to it.
+
+### The Windows zip
+
+```
+packaging/windows/build-zip.sh
+```
+
+run from an MSYS2 MINGW64 shell or Git Bash (with the packages above; MSYS2 in `C:\msys64`, or
+`MINGW_PREFIX` set to another mingw64 folder), builds `dist/MonumentsOfMars-win64.zip`: a
+`MonumentsOfMars` folder with the stripped `mars.exe` (with its icon and version information),
+`SDL2.dll`, this README and the licences. The script stops if either program needs a DLL that
+is neither in the zip nor part of Windows.
 
 ### Build (Linux)
 

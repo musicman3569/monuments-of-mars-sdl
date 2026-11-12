@@ -1,6 +1,8 @@
-/* Windows: the version information Explorer shows in mars.exe's properties. */
+/* Windows: the icon and the version information Explorer shows for mars.exe. */
 #include <winver.h>
 #include "version.h"
+
+1 ICON "packaging/windows/monuments-of-mars.ico"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION MARS_VERSION_MAJOR, MARS_VERSION_MINOR, MARS_VERSION_PATCH, 0

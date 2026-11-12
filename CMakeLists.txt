@@ -35,13 +35,17 @@ add_executable(mars
 )
 
 # Windows: a GUI program (no console window when double-clicked; see src/console.h), with
-# version information in its properties.
+# an icon and version information (src/mars.rc).
 if(WIN32)
     enable_language(RC)
     set_target_properties(mars PROPERTIES WIN32_EXECUTABLE TRUE)
     configure_file(src/version.h.in version.h @ONLY)
     target_sources(mars PRIVATE src/mars.rc)
     target_include_directories(mars PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    # the icon's path in mars.rc is from the repository's root
+    set_property(SOURCE src/mars.rc APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR})
+    set_property(SOURCE src/mars.rc APPEND PROPERTY OBJECT_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/monuments-of-mars.ico)
 endif()
 
 if(TARGET SDL2::SDL2main)
