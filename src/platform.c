@@ -7,13 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bind.h"
 #include "cga.h"
 #include "crt.h"
 #include "gamepad.h"
 #include "settings.h"
 #include "smooth.h"
 
-/* The four configurable keys start at 0; keyconfig_apply sets them. */
+/* The four configurable keys start at 0; keyconfig_load sets them. */
 isr_keys_t isr_keys;
 bool plat_isr_installed;
 
@@ -200,9 +201,67 @@ void plat_request_quit(void)
     quitting = true;
 }
 
+/* The action each key pressed while playing (+ 1), and the keys whose own scancode went to the
+ * game's ISR. */
+static int key_action[SDL_NUM_SCANCODES];
+static bool key_raw[SDL_NUM_SCANCODES];
+
+/* plat_raw_begin / end: the keys and buttons pressed meanwhile. */
+static bool raw_input;
+static struct { bool pad; int code; } raw_queue[32];
+static int raw_head, raw_tail;
+
+void plat_raw_begin(void)
+{
+    raw_input = true;
+    raw_head = raw_tail = 0;
+    pad_set_raw(true);
+}
+
+void plat_raw_end(void)
+{
+    raw_input = false;
+    pad_set_raw(false);
+}
+
+void plat_raw_push(bool pad, int code)
+{
+    const int next = (raw_tail + 1) % 32;
+    if (next != raw_head) {
+        raw_queue[raw_tail].pad = pad;
+        raw_queue[raw_tail].code = code;
+        raw_tail = next;
+    }
+}
+
+static void capture(void);
+
+bool plat_raw_take(bool *pad, int *code)
+{
+    if (!win) {
+        capture();
+        *pad = false;
+        *code = SDL_SCANCODE_ESCAPE;
+        return true;
+    }
+    if (quitting) {
+        *pad = false;
+        *code = SDL_SCANCODE_ESCAPE;
+        return true;
+    }
+    plat_poll();
+    if (raw_head == raw_tail)
+        return false;
+    *pad = raw_queue[raw_head].pad;
+    *code = raw_queue[raw_head].code;
+    raw_head = (raw_head + 1) % 32;
+    return true;
+}
+
 static void on_key(const SDL_KeyboardEvent *e)
 {
-    const int xt = xt_scancode(e->keysym.scancode);    if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_F12 && !e->repeat) {
+    const int xt = xt_scancode(e->keysym.scancode);
+    if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_F12 && !e->repeat) {
         char path[32];
         snprintf(path, sizeof path, "shot%03d.png", ++shot_no);
         if (plat_screenshot(path) == 0)
@@ -232,15 +291,45 @@ static void on_key(const SDL_KeyboardEvent *e)
         dirty = true;
         return;
     }
+    const int sc = (int)e->keysym.scancode;
+    if (sc <= 0 || sc >= SDL_NUM_SCANCODES)
+        return;
+    if (raw_input) {
+        if (e->type == SDL_KEYDOWN && !e->repeat)
+            plat_raw_push(false, sc);
+        return;
+    }
+    /* The bindings (bind.h): while playing, a bound key presses its action's scancode, and
+     * one whose own scancode is an action's does nothing; each key lets go of what it sent. */
+    if (e->type == SDL_KEYUP && key_action[sc]) {
+        bind_release(key_action[sc] - 1);
+        key_action[sc] = 0;
+        return;
+    }
+    if (e->type == SDL_KEYDOWN && pad_playing()) {
+        const int a = bind_key_action(sc);
+        if (a >= 0) {
+            if (!key_action[sc]) {
+                key_action[sc] = a + 1;
+                bind_press(a);
+            }
+            return;
+        }
+        if (bind_reserved(xt))
+            return;
+    }
     if (!xt)
         return;
     if (e->type == SDL_KEYUP) {
-        if (plat_isr_installed)
+        if (plat_isr_installed && (key_raw[sc] || !bind_reserved(xt)))
             plat_isr_key(xt | 0x80);
+        key_raw[sc] = false;
         return;
     }
-    if (plat_isr_installed)
+    if (plat_isr_installed) {
         plat_isr_key(xt);
+        key_raw[sc] = true;
+    }
     /* The game's ISR doesn't chain to the BIOS, so the buffer only fills while it's out. */
     if (plat_isr_installed)
         return;

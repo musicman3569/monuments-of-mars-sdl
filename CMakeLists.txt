@@ -20,6 +20,8 @@ add_executable(mars
     src/level.c
     src/game.c
     src/keyconfig.c
+    src/bind.c
+    src/controls.c
     src/screens.c
     src/hiscore.c
     src/menu.c

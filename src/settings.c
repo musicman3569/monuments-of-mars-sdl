@@ -1,5 +1,7 @@
 #include "settings.h"
 
+#include "bind.h"
+
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -51,6 +53,7 @@ void settings_reset(preset_t preset)
     for (size_t i = 0; i < N_SETTINGS; i++)
         *field(i) = table[i].value[preset];
     settings.preset = (int)preset;
+    bind_defaults();
 }
 
 int settings_preset_by_name(const char *name)
@@ -78,6 +81,8 @@ static int parse_bool(const char *v)
 
 int settings_set(const char *key, const char *value, char *err, size_t errlen)
 {
+    if (bind_is_key(key)) /* [keys] and [pad]: the controls */
+        return bind_ini_set(key, value, err, errlen);
     for (size_t i = 0; i < N_SETTINGS; i++) {
         if (strcmp(key, table[i].key) != 0)
             continue;
@@ -183,6 +188,7 @@ void settings_write(FILE *f)
         }
         fprintf(f, "; %s\n%s = %s\n", table[i].help, dot + 1, value_text(i));
     }
+    bind_write(f);
 }
 
 static char save_path[1024];
@@ -249,7 +255,7 @@ int settings_save(const char *const *keys, int n)
     int count = 0;
     FILE *f = fopen(save_path, "r");
     if (f) {
-        while (count < MAX_LINES - 3 * (int)N_SETTINGS && fgets(lines[count], sizeof lines[count], f)) {
+        while (count < MAX_LINES - 3 * ((int)N_SETTINGS + 2 * ACTIONS) && fgets(lines[count], sizeof lines[count], f)) {
             lines[count][strcspn(lines[count], "\r\n")] = '\0';
             count++;
         }
@@ -259,7 +265,10 @@ int settings_save(const char *const *keys, int n)
         size_t i = 0;
         while (i < N_SETTINGS && strcmp(table[i].key, keys[k]) != 0)
             i++;
-        if (i == N_SETTINGS)
+        char value[64];
+        if (i < N_SETTINGS)
+            snprintf(value, sizeof value, "%s", value_text(i));
+        else if (!bind_ini_value(keys[k], value, sizeof value))
             continue;
         const char *dot = strchr(keys[k], '.');
         char want[32], section[32] = "", key[64];
@@ -284,7 +293,7 @@ int settings_save(const char *const *keys, int n)
             const char *c = strpbrk(lines[at], ";#"); /* a comment after the value stays */
             if (c)
                 copy_line(comment, c);
-            snprintf(lines[at], sizeof lines[at], "%s = %s%s%.200s", *sec ? dot + 1 : keys[k], value_text(i),
+            snprintf(lines[at], sizeof lines[at], "%s = %s%s%.180s", *sec ? dot + 1 : keys[k], value,
                      *comment ? " " : "", comment);
         } else {
             if (end_of_section < 0) {
@@ -295,7 +304,7 @@ int settings_save(const char *const *keys, int n)
             }
             memmove(lines[end_of_section + 2], lines[end_of_section + 1],
                     (size_t)(count - end_of_section - 1) * sizeof lines[0]);
-            snprintf(lines[end_of_section + 1], sizeof lines[0], "%s = %s", dot + 1, value_text(i));
+            snprintf(lines[end_of_section + 1], sizeof lines[0], "%s = %s", dot + 1, value);
             count++;
         }
     }

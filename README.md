@@ -36,8 +36,8 @@ unchanged.
 
 **The whole game is there**, all four volumes: every level, enemy, switch, terminal and sound
 effect, the title screen and its Genus PCX transitions, the menus, story and instructions, the
-high scores, saved games, the keyboard setup, the ending and the cheats, compatible with the
-original's `.HS`, `.KBD`, `.SPD`, `.SV1` and `.SV2` files. The only differences:
+high scores, saved games, the ending and the cheats, compatible with the original's `.HS`,
+`.KBD`, `.SPD`, `.SV1` and `.SV2` files. The only differences:
 
 - **Punctuation** uses the port's own 8x8 font, standing in for the IBM BIOS font, which can't
   be shipped. Letters and digits are drawn in the game's own font.
@@ -51,14 +51,18 @@ original's `.HS`, `.KBD`, `.SPD`, `.SV1` and `.SV2` files. The only differences:
 - **Esc** in a game opens the port's pause menu instead of asking QUIT (Y/N); Q still asks.
 - **Ordering Info.** on the main menu is replaced by **Options** (lettered into the menu
   picture from its own letters).
+- **Config Keyboard** (C on the main menu) is replaced by a **Controls** screen, where every
+  game action gets two keys and two controller buttons of your choice (see below). A `.KBD`
+  setup letter still gives the walk, jump and fire keys until you change them there.
 
-Port extras: a pause menu and an Options screen, game controller support, three presets
+Port extras: a pause menu and an Options screen, rebindable keys, game controller support,
+three presets
 (including **modern** physics at 120 steps a second), smooth movement, a CRT filter, full
 screen and screenshots (see below).
 
 The port reads `MARSn.HS`, `MARSn.KBD`, `MARSn.SPD`, `MARSn.SV1` and `MARSn.SV2` from the
 folder the EXE is in, and **writes** them there as the original does: a new high score, the
-keyboard setup (C in the main menu), the speed check and the saved games (S in game).
+speed check and the saved games (S in game). The controls are saved in `mars.ini` instead.
 
 ### Getting the game
 
@@ -98,11 +102,11 @@ line, the port looks for `MARS1.EXE` in the current folder. The game starts full
 Alt+Enter switches to a window, and `--window` starts in one.
 
 Menu keys as in the original: J (or Enter) to journey onward, I instructions, S story so far,
-O options, C config keyboard, H high scores, Q quit. The port adds a highlight you move with
+O options, C controls, H high scores, Q quit. The port adds a highlight you move with
 the arrow keys, the d-pad or the stick, and choose with Enter, Space or A.
 
-Game keys (the original's, with the default keyboard setup D; C in the main menu chooses
-another):
+Game keys (the defaults: the original's, with its keyboard setup D; C in the main menu changes
+them):
 
 | Key | Action |
 |-----|--------|
@@ -122,7 +126,8 @@ Game controllers stand in for the keyboard (the original had no joystick support
 current pads (Xbox, PlayStation, Switch Pro, 8BitDo and others) are recognised automatically
 and can be plugged in at any time; for anything else, put a
 [`gamecontrollerdb.txt`](https://github.com/mdqinc/SDL_GameControllerDB) next to `mars.exe`.
-Button names are Xbox ones:
+Button names are Xbox ones; the in-game buttons are the defaults, which the Controls screen
+changes (LT, RT and the stick clicks can be bound too):
 
 | Control | In game | Menus and text screens | Y/N questions |
 |---------|---------|------------------------|---------------|
@@ -134,7 +139,17 @@ Button names are Xbox ones:
 | Back / View | quit (Q) | Esc | N |
 | LB / RB | save / restore | | |
 
-The high score name, the keyboard setup and the cheats need the keyboard.
+The high score name and the cheats need the keyboard.
+
+**Controls** (C in the main menu) shows every game action (walk left / right, jump, fire, use,
+the pause menu, save, restore, quit, pause, sound, give up) with two keyboard keys and two
+controller buttons. Move with the arrows, the d-pad or the stick; Enter or A, then press the
+new key or button (Esc or Start cancels); Del or X clears one; Esc or B leaves, saving them in
+`mars.ini`'s `[keys]` and `[pad]` sections. A key or button can only do one thing, so binding
+it takes it from wherever it was. Esc and Start always open the pause menu and the left stick
+always walks. While you play, a key bound to nothing that the game itself would read as an
+action (Space once jump is elsewhere, say) does nothing; the menus, the Y/N questions and the
+pause menu still take the usual keys.
 
 Port keys:
 
@@ -199,6 +214,14 @@ fullscreen = on       ; F11 or Alt+Enter switches
 
 [input]
 quick_taps = off      ; a tap between two frames still counts (on in enhanced and modern)
+
+[keys]                ; the Controls screen's: two keys per action, - for none
+jump = SPACE, Z
+fire = LSHIFT, -
+
+[pad]
+jump = A, -
+fire = X, RT
 ```
 
 `mars --print-settings > mars.ini` writes a complete file with every setting explained. The

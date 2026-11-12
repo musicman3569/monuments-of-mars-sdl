@@ -6,6 +6,7 @@
 #include "effects.h"
 #include "gamepad.h"
 #include "hiscore.h"
+#include "controls.h"
 #include "keyconfig.h"
 #include "options.h"
 #include "pcx.h"
@@ -212,7 +213,7 @@ int main_menu(const gamedata_t *g, char *err, size_t errlen)
             screen_instructions(g);
             break;
         case M_CONFIG:
-            keyconfig_screen(g);
+            controls_screen(g);
             break;
         case M_HIGH:
             hiscore_menu(g);

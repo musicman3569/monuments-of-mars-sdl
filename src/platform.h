@@ -28,6 +28,15 @@ extern bool plat_isr_installed; /* the game's INT 9 handler is in place (else th
 void plat_isr_key(int code);
 void plat_push_key(int c);
 
+/* Port extra for the Controls screen: while raw input is on, every key or button pressed is
+ * queued as itself (an SDL scancode, or a PAD_N_ number with pad set) and does nothing else;
+ * F4, F11, Alt+Enter, Alt+C and F12 still do theirs. plat_raw_take takes the next one, false
+ * if there is none; without a window it writes a screenshot (as getch does) and gives Esc. */
+void plat_raw_begin(void);
+void plat_raw_end(void);
+void plat_raw_push(bool pad, int code);
+bool plat_raw_take(bool *pad, int *code);
+
 /* Port extra: the make code the controller's Start sends in game, for the pause menu. No PC/XT
  * key sends it, so the game's own key tests never see it. */
 #define SC_PAUSE_MENU 0x70

@@ -265,6 +265,17 @@ There is no joystick support in the original. The port's game-controller support
 (`src/gamepad.h`) works by pressing keys: scancodes through the ISR above in game, so it
 behaves exactly like the keyboard, including a held button's code staying in [C8AA].
 
+The port replaces ConfigKeyboard with its Controls screen (`src/controls.c`, `src/bind.h`):
+each action gets two keys and two buttons, saved in mars.ini. The ISR's four keys are fixed at
+setup X's (the arrows, Space, L.Shift) and a bound key or button presses its action's own
+scancode through the ISR (left 4B, right 4D, jump 39, fire 2A, use 1C, save 1F, restore 13,
+quit 10, F5 3F, F1 3B, F6 40; the pause menu SC_PAUSE_MENU), the first of several held
+pressing it and the last let go releasing it, so the game sees what it always did. A key
+bound to nothing goes through as itself unless its scancode is one of those, while playing;
+with a question or the pause menu up every key goes through. The KBD letter is still read,
+and gives the walk, jump and fire keys mars.ini doesn't, but no longer written; an empty file
+now leaves the default keys rather than none.
+
 ## Player (UpdatePlayer, 1054:3d43)
 
 Units: x is a byte column (4 px, 0..4C), y is a scanline pair (2 px, 0..54).

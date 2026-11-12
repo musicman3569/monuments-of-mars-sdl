@@ -6,11 +6,12 @@
  * for the player: in game through the game's keyboard ISR (scancodes, as if typed), in the
  * menus and other screens into the BIOS buffer that getch reads. Xbox names:
  *
- *   in game:            left stick / d-pad   walk (the arrows)
- *                       A                    jump (the configured jump key)
- *                       X                    fire (the configured fire key)
+ *   in game:            the bindings (bind.h, the Controls screen); by default
+ *                       d-pad left / right   walk (the left stick always does)
+ *                       A                    jump
+ *                       X                    fire
  *                       B or Y               use a switch, lever or terminal (Enter)
- *                       Start                the pause menu (port extra: Continue, Options,
+ *                       Start                the pause menu (always: Continue, Options,
  *                                            Quit to Menu, Quit Game)
  *                       Back / View          quit (Q, then the QUIT (Y/N) question)
  *                       LB / RB              save / restore (S / R, then ARE YOU SURE)
@@ -42,12 +43,30 @@ void pad_set_yes_no(bool on);
  * the d-pad and stick type arrow keys (0 then the scancode). */
 void pad_set_menu(bool on);
 
-/* The buttons pad_update works with, OR-ed together over every controller (for tests). */
+/* In game, with no Y/N question or pause menu up: the keyboard's and controller's bindings
+ * apply (bind.h). */
+bool pad_playing(void);
+
+/* The controls screen: while on, the controller's buttons (and the stick, as STICK_ numbers)
+ * go to plat_raw_push as pressed instead of doing anything. */
+void pad_set_raw(bool on);
+
+/* The buttons pad_update works with, by number (PAD_N_; the ones up to PAD_BINDABLE can be
+ * bound) and as bits (PAD_), OR-ed together over every controller (for tests). */
 enum {
-    PAD_A = 1 << 0, PAD_B = 1 << 1, PAD_X = 1 << 2, PAD_Y = 1 << 3,
-    PAD_START = 1 << 4, PAD_BACK = 1 << 5, PAD_LB = 1 << 6, PAD_RB = 1 << 7,
-    PAD_LEFT = 1 << 8, PAD_RIGHT = 1 << 9, PAD_UP = 1 << 10, PAD_DOWN = 1 << 11,
-    PAD_BUTTONS = 12
+    PAD_N_A, PAD_N_B, PAD_N_X, PAD_N_Y, PAD_N_START, PAD_N_BACK, PAD_N_LB, PAD_N_RB,
+    PAD_N_LEFT, PAD_N_RIGHT, PAD_N_UP, PAD_N_DOWN, PAD_N_LT, PAD_N_RT, PAD_N_L3, PAD_N_R3,
+    PAD_BINDABLE,
+    PAD_N_STICK_LEFT = PAD_BINDABLE, PAD_N_STICK_RIGHT, PAD_N_STICK_UP, PAD_N_STICK_DOWN,
+    PAD_BUTTONS
+};
+enum {
+    PAD_A = 1 << PAD_N_A, PAD_B = 1 << PAD_N_B, PAD_X = 1 << PAD_N_X, PAD_Y = 1 << PAD_N_Y,
+    PAD_START = 1 << PAD_N_START, PAD_BACK = 1 << PAD_N_BACK, PAD_LB = 1 << PAD_N_LB, PAD_RB = 1 << PAD_N_RB,
+    PAD_LEFT = 1 << PAD_N_LEFT, PAD_RIGHT = 1 << PAD_N_RIGHT, PAD_UP = 1 << PAD_N_UP, PAD_DOWN = 1 << PAD_N_DOWN,
+    PAD_LT = 1 << PAD_N_LT, PAD_RT = 1 << PAD_N_RT, PAD_L3 = 1 << PAD_N_L3, PAD_R3 = 1 << PAD_N_R3,
+    PAD_STICK_LEFT = 1 << PAD_N_STICK_LEFT, PAD_STICK_RIGHT = 1 << PAD_N_STICK_RIGHT,
+    PAD_STICK_UP = 1 << PAD_N_STICK_UP, PAD_STICK_DOWN = 1 << PAD_N_STICK_DOWN,
 };
 
 /* What pad_update does with the controllers' state, given as PAD_ bits. */

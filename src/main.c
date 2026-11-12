@@ -26,6 +26,7 @@
 #include "gamedata.h"
 #include "game.h"
 #include "hiscore.h"
+#include "controls.h"
 #include "keyconfig.h"
 #include "menu.h"
 #include "platform.h"
@@ -116,8 +117,8 @@ static int load_settings(const options_t *o)
         SDL_free(base);
     }
     settings_set_path(path);
-    static settings_pair_t pairs[32];
-    int n = *path ? settings_read_file(path, pairs, 32) : 0;
+    static settings_pair_t pairs[64];
+    int n = *path ? settings_read_file(path, pairs, 64) : 0;
     if (n < 0) {
         fprintf(stderr, "mars: can't read %s\n", path);
         n = 0;
@@ -184,7 +185,7 @@ static int show(gamedata_t *g, const char *name, char *err, size_t errlen)
     if (!strcmp(name, "ordering"))
         return screen_ordering(g);
     if (!strcmp(name, "keys")) {
-        keyconfig_screen(g);
+        controls_screen(g);
         return 0;
     }
     if (!strcmp(name, "hiscores")) {
