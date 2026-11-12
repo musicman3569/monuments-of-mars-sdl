@@ -30,6 +30,12 @@ DESTDIR="$appdir" cmake --install "$build" --strip
 mkdir -p "$appdir/usr/lib"
 cp -L /opt/sdl2/lib/libSDL2-2.0.so.0 "$appdir/usr/lib/"
 strip --strip-unneeded "$appdir/usr/lib/libSDL2-2.0.so.0"
+# the licences, as the Windows and Miyoo zips have them (SDL2's own install puts its LICENSE.txt
+# in share/licenses/SDL2)
+doc=$appdir/usr/share/doc/monuments-of-mars
+mkdir -p "$doc"
+cp /src/LICENSE /src/LICENSE-GPL-2.0.txt "$doc/"
+cp /opt/sdl2/share/licenses/SDL2/LICENSE.txt "$doc/LICENSE-SDL2.txt"
 cp "$here/monuments-of-mars.desktop" "$here/monuments-of-mars.svg" "$appdir/"
 ln -s usr/bin/mars "$appdir/AppRun"
 # the thumbnail file managers show (appimagetool wants a PNG there)

@@ -121,7 +121,8 @@ packaging/linux/build-appimage.sh
 builds `dist/MonumentsOfMars-x86_64.AppImage` in a Docker container (Ubuntu 22.04, with SDL2
 2.32 built from source and bundled), so it runs on any x86-64 Linux with glibc 2.34 or later:
 SteamOS 3, Bazzite, Fedora, Ubuntu 22.04 and later, Arch. Only Docker is needed on the build
-machine. The AppImage holds the port and SDL2 only; the game's files stay outside it.
+machine. The AppImage holds the port, SDL2 and their licences (in
+`usr/share/doc/monuments-of-mars/`) only; the game's files stay outside it.
 
 To play, put the AppImage in a folder with the files from `marsfree.zip` (or with a `game`
 folder holding them), make it executable (`chmod +x`, or Properties > Permissions in a file
