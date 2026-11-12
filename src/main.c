@@ -14,8 +14,8 @@
  * Without a window, for testing: --screenshot writes the title screen (or, with --level, that
  * level's first frame) to a PNG. --script plays from the level with scripted keys and prints
  * where the player got to (see game_run_script in game.h); with --screenshot, of the last
- * frame. --show runs one of the menu's screens (title, menu, story, instructions, ordering,
- * keys, hiscores, notice) and writes <out>-N.png at every wait for a key, answering Esc. */
+ * frame. --show runs one of the menu's screens (title, volumes, menu, story, instructions,
+ * ordering, keys, hiscores, notice) and writes <out>-N.png at every wait for a key, answering Esc. */
 #include <SDL.h>
 
 #include <stdio.h>
@@ -36,6 +36,7 @@
 
 typedef struct {
     const char *exe_path;
+    int exe_given; /* a MARSn.EXE on the command line (else the volume selector) */
     int level; /* 1-based, 0 = not given */
     const char *screenshot;
     const char *script;
@@ -94,8 +95,10 @@ static int parse_args(int argc, char **argv, options_t *o)
                             "[--config FILE] [--print-settings] [--level N] [--palette 0|1] [--bright] [--crt] [--window] "
                             "[--screenshot out.png] [--script KEYS] [--show SCREEN]\n");
             return -1;
-        } else
+        } else {
             o->exe_path = a;
+            o->exe_given = 1;
+        }
     }
     return 0;
 }
@@ -185,6 +188,11 @@ static int show(gamedata_t *g, const char *name, char *err, size_t errlen)
         return screen_instructions(g);
     if (!strcmp(name, "ordering"))
         return screen_ordering(g);
+    if (!strcmp(name, "volumes")) {
+        static const bool all[4] = {true, true, true, true};
+        volume_menu(g, all, 1);
+        return 0;
+    }
     if (!strcmp(name, "keys")) {
         controls_screen(g);
         return 0;
@@ -201,75 +209,46 @@ static int show(gamedata_t *g, const char *name, char *err, size_t errlen)
     return -1;
 }
 
-int main(int argc, char **argv)
+/* A MARSn.EXE: as given if it's there; a relative one that isn't in the current folder, the
+ * one beside mars.exe (started from a shortcut or another folder, the game files are where the
+ * port is). NULL if neither is there. */
+static const char *find_exe(const char *name, char *buf, size_t len)
 {
-    console_attach();
-    if (parse_args(argc, argv, &opt) != 0 || load_settings(&opt) != 0)
-        return 2;
-    if (opt.print_settings) {
-        settings_write(stdout);
-        return 0;
+    FILE *f = fopen(name, "rb");
+    if (f) {
+        fclose(f);
+        return name;
     }
-    cga_palette_override = opt.palette;
-    cga_bright_override = opt.bright;
+    if (name[0] == '/' || name[0] == '\\' || strchr(name, ':'))
+        return NULL;
+    char *base = SDL_GetBasePath();
+    if (!base)
+        return NULL;
+    snprintf(buf, len, "%s%s", base, name);
+    SDL_free(base);
+    if ((f = fopen(buf, "rb")) == NULL)
+        return NULL;
+    fclose(f);
+    return buf;
+}
+
+/* One volume in the window: the title screen (or --level's game), then the menu loop until
+ * the player quits. Returns 0, or 1 after an error box. */
+static int play_volume(const char *exe_path)
+{
     static gamedata_t data;
     char err[300];
-    /* A relative MARSn.EXE that isn't in the current folder: the one beside mars.exe (started
-     * from a shortcut or another folder, the game files are where the port is). */
-    static char beside[1100];
-    FILE *probe = fopen(opt.exe_path, "rb");
-    if (probe) {
-        fclose(probe);
-    } else if (opt.exe_path[0] != '/' && opt.exe_path[0] != '\\' && !strchr(opt.exe_path, ':')) {
-        char *base = SDL_GetBasePath();
-        if (base) {
-            snprintf(beside, sizeof beside, "%s%s", base, opt.exe_path);
-            SDL_free(base);
-            if ((probe = fopen(beside, "rb")) != NULL) {
-                fclose(probe);
-                opt.exe_path = beside;
-            }
-        }
-    }
-    if (gamedata_load(&data, opt.exe_path, err, sizeof err) != 0) {
+    if (gamedata_load(&data, exe_path, err, sizeof err) != 0) {
         fail(err);
         return 1;
     }
     const int level = opt.level >= 1 && opt.level <= LEVELS ? opt.level - 1 : 0;
-
-    if (opt.show) {
-        const int rc = show(&data, opt.show, err, sizeof err);
-        if (rc != 0)
-            fprintf(stderr, "mars: %s\n", err);
-        gamedata_free(&data);
-        return rc != 0;
-    }
-    if (opt.screenshot || opt.script) {
-        int rc = 0;
-        if (opt.level || opt.script) {
-            keyconfig_load(&data);
-            game_run_script(&data, level, 5, opt.script ? opt.script : "1");
-        } else {
-            rc = title_draw(&data, err, sizeof err);
-            if (rc != 0)
-                fail(err);
-        }
-        if (rc == 0 && opt.screenshot && (rc = plat_screenshot(opt.screenshot)) != 0)
-            fprintf(stderr, "mars: can't write %s\n", opt.screenshot);
-        gamedata_free(&data);
-        return rc != 0;
-    }
-
-    if (plat_init("Monuments of Mars", err, sizeof err) != 0) {
-        fail(err);
-        gamedata_free(&data);
-        return 1;
-    }
     int rc = 0;
     if (opt.level) { /* port extra: a game first */
         hiscore_load(&data);
         keyconfig_load(&data);
         game_play(&data, level, 5);
+        opt.level = 0; /* the next volume starts at its title */
     } else if (title_screen(&data, err, sizeof err) != 0) {
         fail(err);
         rc = 1;
@@ -285,8 +264,95 @@ int main(int argc, char **argv)
             break;
         game_play(&data, 0, shots);
     }
-
-    plat_shutdown();
     gamedata_free(&data);
     return rc;
+}
+
+/* Port extra: without a MARSn.EXE on the command line, the volumes beside mars.exe (or in the
+ * current folder) to choose from, again after each one is quit; with just one, that one.
+ * Returns 0, or 1 after an error box. */
+static int choose_volumes(void)
+{
+    static char files[4][16], paths[4][1100];
+    const char *exe[4];
+    bool present[4];
+    int n = 0, first = 0;
+    for (int v = 0; v < 4; v++) {
+        snprintf(files[v], sizeof files[v], "MARS%d.EXE", v + 1);
+        exe[v] = find_exe(files[v], paths[v], sizeof paths[v]);
+        present[v] = exe[v] != NULL;
+        if (present[v] && n++ == 0)
+            first = v;
+    }
+    if (n <= 1) /* one volume, or none (MARS1.EXE's error) */
+        return play_volume(n ? exe[first] : "MARS1.EXE");
+    static gamedata_t names; /* the volumes' names and the font, from the first one */
+    char err[300];
+    if (gamedata_load(&names, exe[first], err, sizeof err) != 0) {
+        fail(err);
+        return 1;
+    }
+    int rc = 0, sel = first + 1;
+    while (rc == 0 && !plat_quitting()) {
+        const int v = volume_menu(&names, present, sel);
+        if (v == 0)
+            break;
+        sel = v;
+        rc = play_volume(exe[v - 1]);
+    }
+    gamedata_free(&names);
+    return rc;
+}
+
+int main(int argc, char **argv)
+{
+    console_attach();
+    if (parse_args(argc, argv, &opt) != 0 || load_settings(&opt) != 0)
+        return 2;
+    if (opt.print_settings) {
+        settings_write(stdout);
+        return 0;
+    }
+    cga_palette_override = opt.palette;
+    cga_bright_override = opt.bright;
+    char err[300];
+    static char found[1100];
+    const char *exe = find_exe(opt.exe_path, found, sizeof found);
+    if (!opt.show && !opt.screenshot && !opt.script) { /* the game, in a window */
+        if (plat_init("Monuments of Mars", err, sizeof err) != 0) {
+            fail(err);
+            return 1;
+        }
+        const int rc = opt.exe_given ? play_volume(exe ? exe : opt.exe_path) : choose_volumes();
+        plat_shutdown();
+        return rc;
+    }
+
+    /* without a window: one screen, a script or a screenshot */
+    static gamedata_t data;
+    if (gamedata_load(&data, exe ? exe : opt.exe_path, err, sizeof err) != 0) {
+        fail(err);
+        return 1;
+    }
+    const int level = opt.level >= 1 && opt.level <= LEVELS ? opt.level - 1 : 0;
+    if (opt.show) {
+        const int rc = show(&data, opt.show, err, sizeof err);
+        if (rc != 0)
+            fprintf(stderr, "mars: %s\n", err);
+        gamedata_free(&data);
+        return rc != 0;
+    }
+    int rc = 0;
+    if (opt.level || opt.script) {
+        keyconfig_load(&data);
+        game_run_script(&data, level, 5, opt.script ? opt.script : "1");
+    } else {
+        rc = title_draw(&data, err, sizeof err);
+        if (rc != 0)
+            fail(err);
+    }
+    if (rc == 0 && opt.screenshot && (rc = plat_screenshot(opt.screenshot)) != 0)
+        fprintf(stderr, "mars: can't write %s\n", opt.screenshot);
+    gamedata_free(&data);
+    return rc != 0;
 }

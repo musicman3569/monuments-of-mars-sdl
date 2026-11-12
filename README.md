@@ -99,11 +99,12 @@ build/mars.exe game/MARS1.EXE
 ```
 
 Run `mars.exe game/MARS2.EXE` (and so on) for the other volumes. Without an EXE on the command
-line, the port looks for `MARS1.EXE` in the current folder, then next to `mars.exe`.
+line, the port opens a volume selector listing the `MARSn.EXE` files it finds in the current
+folder or next to `mars.exe` (1 First Contact, 2 The Pyramid, 3 The Fortress, 4 The Face):
+choose one with the arrows, the d-pad or a digit and Enter or A. Quitting a volume from its main
+menu comes back to the selector; Esc there leaves. With only one volume, it starts straight away.
 
-With a release download, double-click `mars.exe` in the folder with the game files to play
-volume 1, or run `mars.exe MARS2.EXE` (and so on) for the others. Dropping a `MARSn.EXE` onto
-`mars.exe` works too. The game starts full screen; F11 or
+With a release download, put the game files next to `mars.exe` and double-click it. The game starts full screen; F11 or
 Alt+Enter switches to a window, and `--window` starts in one.
 
 Menu keys as in the original: J (or Enter) to journey onward, I instructions, S story so far,

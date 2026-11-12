@@ -1,6 +1,7 @@
 #include "menu.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "cga.h"
 #include "effects.h"
@@ -221,4 +222,52 @@ int main_menu(const gamedata_t *g, char *err, size_t errlen)
         }
     }
     return 0;
+}
+
+int volume_menu(const gamedata_t *g, const bool present[4], int sel)
+{
+    /* "1)  FIRST CONTACT" ... "4)  THE FACE", one after the other in every volume's data */
+    char names[4][24];
+    const char *s = gamedata_find_string(g, "1)  ");
+    for (int v = 0; v < 4; v++) {
+        if (s && s[0] == '1' + v && s[1] == ')')
+            snprintf(names[v], sizeof names[v], "%s", s);
+        else
+            snprintf(names[v], sizeof names[v], "%d)  VOLUME %d", v + 1, v + 1);
+        s = s ? gamedata_next_string(g, s) : NULL;
+    }
+    const char *lines[5];
+    int volume[5], n = 0, at = 0;
+    for (int v = 0; v < 4; v++)
+        if (present[v]) {
+            if (v + 1 == sel)
+                at = n;
+            volume[n] = v + 1;
+            lines[n++] = names[v];
+        }
+    volume[n] = 0;
+    lines[n++] = "QUIT";
+    cga_set_mode(0, 0);
+    text_set_high_font(g, FONT_NORMAL);
+    while (plat_kbhit())
+        plat_getch();
+    for (;;) {
+        menu_box("MONUMENTS OF MARS", lines, n, at, 25);
+        pad_set_menu(true);
+        const int c = plat_getch();
+        pad_set_menu(false);
+        if (c == 0) {
+            const int sc = plat_getch();
+            if (sc == 0x48)
+                at = (at + n - 1) % n;
+            else if (sc == 0x50)
+                at = (at + 1) % n;
+        } else if (c == '\r' || c == ' ') {
+            return volume[at];
+        } else if (c >= '1' && c <= '4' && present[c - '1']) {
+            return c - '0';
+        } else if (c == 27 || c == 'q' || c == 'Q') {
+            return 0;
+        }
+    }
 }
