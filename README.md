@@ -60,7 +60,8 @@ high scores, saved games, the ending and the cheats, compatible with the origina
 Port extras: a pause menu and an Options screen, rebindable keys, game controller support,
 three presets
 (including **modern** physics at 120 steps a second), smooth movement, a CRT filter, full
-screen and screenshots (see below).
+screen and screenshots (see below). The port starts with the **modern** preset, every enhancement and the
+CRT filter on; `--classic` (or `preset = classic` in `mars.ini`) plays the original exactly.
 
 The port reads `MARSn.HS`, `MARSn.KBD`, `MARSn.SPD`, `MARSn.SV1` and `MARSn.SV2` from the
 folder the EXE is in, and **writes** them there as the original does: a new high score, the
@@ -137,7 +138,8 @@ into `Roms/PORTS/Games/Monuments of Mars/`, then in Ports run "~Import ports": M
 appears under Platform. The volume selector comes first; the scores, saves and `mars.ini` are
 kept in that folder too.
 
-The build for the handheld (CMake's `MARS_MIYOO`) shows the picture doubled to 640 x 400 with
+The build for the handheld (CMake's `MARS_MIYOO`) starts in the modern preset as the PC does,
+every enhancement on but the CRT filter. It shows the picture doubled to 640 x 400 with
 black bars, has no CRT filter or full screen switch (Options leaves them out), and takes the
 high score name from the d-pad: up and down pick the letter under the cursor, right moves on,
 left or B goes back, A or Start ends. The buttons keep the places of an Xbox pad's in a game,
@@ -233,9 +235,11 @@ Port keys:
 
 The port has three presets:
 
-- **classic** (the default): the original game exactly, quirks and all.
+- **modern** (the default): the game rewritten to run at 120 steps a second, with every
+  enhancement on, the CRT filter included.
 - **enhanced**: the original's rules and timing, with smooth movement and quick taps on.
-- **modern**: the game rewritten to run at 120 steps a second.
+- **classic**: the original game exactly, quirks and all. The default for runs without a
+  window (`--screenshot`, `--script`, `--show`).
 
 Its settings:
 
@@ -262,7 +266,7 @@ Its settings:
 - **Quick taps** (`input.quick_taps`): a key or button tapped and let go between two of the
   game's frames still counts. The original only sees what is held as a frame starts, so a
   quick tap of jump or Enter could be missed.
-- **CRT filter** (`display.crt`, off in every preset): the CRT look of RetroArch's
+- **CRT filter** (`display.crt`, on in modern): the CRT look of RetroArch's
   `2xsal-level2-crt` shader preset. The picture is doubled with 2xSaL's smoothed edges, then
   scaled to the window under a shadow mask. Alt+C switches it.
 - **Full screen** (`display.fullscreen`, on in every preset).
@@ -272,16 +276,16 @@ Choose a preset with `--classic`, `--enhanced` or `--modern`, or in a `mars.ini`
 
 ```ini
 [game]
-preset = classic      ; or enhanced, or modern
-physics = classic     ; or modern (120 steps a second)
+preset = modern       ; or enhanced, or classic
+physics = modern      ; or classic (the original's 18 steps a second)
 
 [display]
-smooth = off          ; things glide between the game's steps (on in enhanced). F4 switches
-crt = off             ; the CRT filter. Alt+C switches
+smooth = on           ; things glide between the game's steps (classic physics). F4 switches
+crt = on              ; the CRT filter. Alt+C switches
 fullscreen = on       ; F11 or Alt+Enter switches
 
 [input]
-quick_taps = off      ; a tap between two frames still counts (on in enhanced and modern)
+quick_taps = on       ; a tap between two frames still counts (off in classic)
 
 [keys]                ; the Controls screen's: two keys per action, - for none
 jump = SPACE, Z

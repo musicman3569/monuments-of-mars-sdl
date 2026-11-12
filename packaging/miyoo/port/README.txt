@@ -39,6 +39,7 @@ there too.
 A new high score's name is picked with the d-pad: up and down change the letter under the
 cursor, right takes it and moves on, left or B goes back, and A or Start ends.
 
-The Options screen (main menu or pause menu) has the physics (classic or modern), smooth
-movement and the quick taps fix. The PC version's CRT filter isn't in this build. The cheats
-need a keyboard.
+The game starts with the modern physics (120 steps a second, a pixel at a time), smooth
+movement and the quick taps fix on. The Options screen (main menu or pause menu) switches
+them; with the physics set to classic it plays as the original did. The PC version's CRT
+filter isn't in this build. The cheats need a keyboard.

@@ -135,7 +135,12 @@ static int load_settings(const options_t *o)
     for (int i = 0; i < n && preset < 0; i++)
         if (!strcmp(pairs[i].key, "game.preset") && (preset = settings_preset_by_name(pairs[i].value)) < 0)
             fprintf(stderr, "mars: %s:%d: game.preset must be classic, enhanced or modern\n", path, pairs[i].line);
-    settings_reset(preset < 0 ? PRESET_CLASSIC : (preset_t)preset);
+    /* no preset chosen: modern, everything on (on the Miyoo all but the CRT filter, which
+     * settings_reset leaves off there); runs without a window (tests, screenshots), the original */
+    const bool headless = o->screenshot || o->script || o->show;
+    if (preset < 0)
+        preset = headless ? PRESET_CLASSIC : PRESET_MODERN;
+    settings_reset((preset_t)preset);
 
     char err[160];
     for (int i = 0; i < n; i++)

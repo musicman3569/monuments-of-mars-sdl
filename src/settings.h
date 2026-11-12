@@ -1,14 +1,16 @@
 /* The port's own settings: which enhancements are on. Like ptomb-port's.
  *
  * Three presets:
- *   classic   the original game (the default)
+ *   classic   the original game (the default without a window)
  *   enhanced  the original game's rules, with the display and input enhancements
- *   modern    the game rewritten to run at 120 steps a second (game.physics = modern)
+ *   modern    the game rewritten to run at 120 steps a second (game.physics = modern), with
+ *             every enhancement and the CRT filter on (the default; the Miyoo has no CRT filter)
  * Each setting has a value for each preset: enhancements are off in classic.
  *
  * Where they come from, later ones winning:
  *   1. the preset (from --classic / --enhanced / --modern, else game.preset in the file,
- *      else classic)
+ *      else modern; classic for runs without a window, so the tests' results stay the
+ *      original's)
  *   2. mars.ini next to mars.exe (or the --config file), where Options saves what it switches
  *      (settings_save); runs without a window skip it unless --config names it
  *   3. the command line: --classic / --enhanced / --modern's physics, then --set

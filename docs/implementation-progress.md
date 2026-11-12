@@ -219,6 +219,13 @@ it with Esc.
   movement (it draws with SDL_RenderCopyF and clip rects, which the handheld's renderer may
   not do) and modern physics' speed there are unverified.
 
+- The default preset (none given on the command line or in mars.ini) is **modern**, and the
+  modern preset turns every enhancement on, smooth movement and the CRT filter included (the
+  user's choice); the Miyoo build too, without the CRT filter (`settings_reset` clears it
+  there). Runs without a window (`--screenshot`, `--script`, `--show`) default to classic, so
+  the regression runs and screenshots are unchanged. Modern physics' speed on the Miyoo is
+  unverified.
+
 ## Architectural decisions and why
 
 - **Assets read from the user's files at run time, never embedded**, found by byte pattern

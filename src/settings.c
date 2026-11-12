@@ -1,6 +1,7 @@
 #include "settings.h"
 
 #include "bind.h"
+#include "platform.h"
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -22,16 +23,17 @@ static const struct {
 } table[] = {
     {"game.preset", T_PRESET, offsetof(settings_t, preset), {PRESET_CLASSIC, PRESET_ENHANCED, PRESET_MODERN},
      "classic = the original game; enhanced = with the display and input enhancements;\n"
-     "; modern = rewritten to run at 120 steps a second. Settings below override it"},
+     "; modern (the default) = rewritten to run at 120 steps a second, with every enhancement\n"
+     "; and the CRT filter. Settings below override it"},
     {"game.physics", T_PHYSICS, offsetof(settings_t, physics), {PHYSICS_CLASSIC, PHYSICS_CLASSIC, PHYSICS_MODERN},
      "classic = the original's 18 steps a second, things moving 4 pixels across at a time;\n"
      "; modern = 120 steps a second, a pixel at a time, drawn at the monitor's refresh rate,\n"
      "; with sounds that no longer pause the game. The levels and rules are the same"},
-    {"display.smooth", T_BOOL, offsetof(settings_t, smooth), {0, 1, 0},
+    {"display.smooth", T_BOOL, offsetof(settings_t, smooth), {0, 1, 1},
      "smooth movement: things glide between the game's steps (18 a second, 4 pixels across),\n"
      "; shown at the monitor's refresh rate. Only the picture changes; the game runs as before.\n"
      "; F4 switches. Not used with game.physics = modern, which draws every step itself"},
-    {"display.crt", T_BOOL, offsetof(settings_t, crt), {0, 0, 0},
+    {"display.crt", T_BOOL, offsetof(settings_t, crt), {0, 0, 1},
      "the CRT look of RetroArch's 2xsal-level2-crt shader preset: the picture doubled with\n"
      "; 2xSaL's smoothed edges, then scaled to the window under a shadow mask. Alt+C switches"},
     {"display.fullscreen", T_BOOL, offsetof(settings_t, fullscreen), {1, 1, 1},
@@ -53,6 +55,8 @@ void settings_reset(preset_t preset)
     for (size_t i = 0; i < N_SETTINGS; i++)
         *field(i) = table[i].value[preset];
     settings.preset = (int)preset;
+    if (PLAT_HANDHELD) /* no CRT filter there (the CPU can't spare it) */
+        settings.crt = 0;
     bind_defaults();
 }
 
