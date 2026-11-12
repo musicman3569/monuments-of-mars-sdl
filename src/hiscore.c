@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cga.h"
+#include "gamepad.h"
 #include "gfx.h"
 #include "platform.h"
 #include "text.h"
@@ -157,6 +158,52 @@ static void input_name(int col, int row, int max, char *buf, int color)
     buf[len] = 0;
 }
 
+/* The handheld's (port extra; it has no keyboard): the d-pad's up and down pick the character
+ * under the cursor, shown in its place (none is the '_' cursor), right takes it and moves on,
+ * left or B goes back to the one before, A or Start ends, with the one picked if any. */
+static void input_name_pad(int col, int row, int max, char *buf, int color)
+{
+    static const char set[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.!?";
+    const int n_set = (int)sizeof set - 1;
+    int len = 0, pick = 0;
+    pad_set_menu(true); /* the d-pad types arrow keys */
+    for (;;) {
+        if (len < max)
+            draw_char(color, pick ? set[pick] : '_', row, col + len);
+        plat_dirty();
+        const int c = plat_getch();
+        if (plat_quitting())
+            break;
+        const int ext = c == 0 ? plat_getch() : 0;
+        if (ext == 0x48 || ext == 0x50) { /* up / down */
+            pick = (pick + (ext == 0x48 ? 1 : n_set - 1)) % n_set;
+        } else if (ext == 0x4D) { /* right */
+            if (len < max) {
+                buf[len] = set[pick];
+                draw_char(color, set[pick], row, col + len);
+                len++;
+                pick = 0;
+            }
+        } else if (ext == 0x4B || c == 27) { /* left, B */
+            if (len < max)
+                draw_char(color, ' ', row, col + len);
+            pick = 0;
+            if (len) {
+                const char *at = strchr(set, buf[--len]);
+                pick = at ? (int)(at - set) : 0;
+            }
+        } else if (c == '\r') {
+            if (pick && len < max)
+                buf[len++] = set[pick];
+            break;
+        }
+    }
+    pad_set_menu(false);
+    while (len && buf[len - 1] == ' ')
+        len--;
+    buf[len] = 0;
+}
+
 int hiscore_check(const gamedata_t *g, unsigned long score)
 {
     plat_isr_installed = false; /* setvect(9, the BIOS handler) */
@@ -176,7 +223,10 @@ int hiscore_check(const gamedata_t *g, unsigned long score)
     hiscore_show(g);
     text_set_high_font(g, FONT_NORMAL);
     draw_text(1, "NEW HIGH SCORE!!", 0, 0x0C);
-    input_name(0x10, i * 2 + 4, 0x14, names[i], 1);
+    if (PLAT_HANDHELD)
+        input_name_pad(0x10, i * 2 + 4, 0x14, names[i], 1);
+    else
+        input_name(0x10, i * 2 + 4, 0x14, names[i], 1);
     hiscore_show(g);
     draw_text(2, "PRESS ANY KEY TO CONTINUE.", 0x18, 7);
     walk_until_key(g);

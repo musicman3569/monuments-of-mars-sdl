@@ -1,0 +1,16 @@
+/mnt/SDCARD/Roms/PORTS/Games/Monuments of Mars
+├── PLACE THE GAME FILES HERE.txt
+├── MARS1.EXE      <- from marsfree.zip (the freeware release), with
+├── MARS1.IGS         MARS1.IGS, MARS1.CF1 and MARS1.CF2, and the
+├── MARS1.CF1         same for the other volumes (MARS2 to MARS4)
+├── MARS1.CF2
+├── ...
+├── mars
+├── README.txt
+├── LICENSE.txt
+├── LICENSE-GPL-2.0.txt
+└── lib
+    ├── libneonarmmiyoo.so
+    ├── libSDL2-2.0.so.0
+    ├── SDL2-LICENSE.txt
+    └── sdl2_miyoo-LICENSE.txt

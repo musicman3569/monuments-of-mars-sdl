@@ -198,6 +198,26 @@ it with Esc.
   entry (typing, Backspace, '?', the file written back with CR LF), the key config screen.
   With real key presses sent to the window: title, high scores, a game quit with Q / Y, the
   menu's Q, ordering info, exit.
+- Linux and the Miyoo Mini (Plus) (as realms-of-chaos-sdl does them; README has the user's
+  side). `src/files.c`: a game file's name in any case (`gamedata_path`, the EXE), and the
+  port's folder, which in the AppImage is `$APPIMAGE`'s rather than the read-only mount
+  (`mars.ini`, `gamecontrollerdb.txt`); without an EXE the volumes are looked for in the
+  current folder, the port's folder and a `game` folder there, with a message box listing
+  them when there are none. `packaging/linux/build-appimage.sh` builds
+  `dist/MonumentsOfMars-x86_64.AppImage` in Docker (Ubuntu 22.04, SDL2 2.32.10 bundled;
+  glibc 2.34 or later). `packaging/miyoo/build-onion-port.sh` cross-compiles with CMake's
+  `MARS_MIYOO` (`PLAT_HANDHELD` in platform.h) and builds `dist/MonumentsOfMars-OnionUI.zip`
+  with sdl2_miyoo (vendored in `packaging/miyoo/sdl2-miyoo/`, the same copy as RoC's). The
+  handheld: a 640 x 400 window (its SDL scales it to the panel), no CRT filter or full
+  screen (Options hides them), default buttons by place (B jump, Y fire, A / X use, since
+  its SDL names them by label), the Controls screen's names L1 / R1 / L2 / R2 / SELECT, and
+  the high score name picked with the d-pad (`input_name_pad`). Controllers already plugged
+  in are opened at `pad_init` on every system, not only through device-added events.
+  Checked: the AppImage on Arch (files beside it, run from another folder, mars.ini read
+  from beside it, lowercase file names); the Miyoo build compiles and links against
+  sdl2_miyoo. **Not yet run on a Miyoo**: the d-pad name entry, the button layout, smooth
+  movement (it draws with SDL_RenderCopyF and clip rects, which the handheld's renderer may
+  not do) and modern physics' speed there are unverified.
 
 ## Architectural decisions and why
 

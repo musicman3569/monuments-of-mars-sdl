@@ -1,0 +1,3 @@
+Copy the files from marsfree.zip (the freeware release of Monuments of Mars: MARS1.EXE,
+MARS1.IGS, MARS1.CF1, MARS1.CF2 and the same for volumes 2 to 4) into this folder. Then open
+Ports, run "~Import ports" so the game shows in the list, and start it from there.

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Monuments of Mars
+Comment=A port of Apogee's 1991 platformer (needs the freeware game files)
+Exec=mars
+Icon=monuments-of-mars
+Terminal=false
+Categories=Game;ActionGame;

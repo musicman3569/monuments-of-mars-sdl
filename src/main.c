@@ -24,6 +24,7 @@
 
 #include "cga.h"
 #include "console.h"
+#include "files.h"
 #include "gamedata.h"
 #include "game.h"
 #include "hiscore.h"
@@ -116,9 +117,9 @@ static int load_settings(const options_t *o)
     } else if (o->config) {
         snprintf(path, sizeof path, "%s", o->config);
     } else {
-        char *base = SDL_GetBasePath();
-        snprintf(path, sizeof path, "%smars.ini", base ? base : "");
-        SDL_free(base);
+        char dir[1000];
+        port_dir(dir, sizeof dir); /* beside mars.exe, or the AppImage */
+        snprintf(path, sizeof path, "%smars.ini", dir);
     }
     settings_set_path(path);
     static settings_pair_t pairs[64];
@@ -209,27 +210,45 @@ static int show(gamedata_t *g, const char *name, char *err, size_t errlen)
     return -1;
 }
 
-/* A MARSn.EXE: as given if it's there; a relative one that isn't in the current folder, the
- * one beside mars.exe (started from a shortcut or another folder, the game files are where the
- * port is). NULL if neither is there. */
+/* A MARSn.EXE: as given if it's there, its name in any case (files.h); a relative one that
+ * isn't in the current folder, in the port's folder or a "game" folder in it (started from a
+ * shortcut, Steam or another folder, the game files are where the port is). NULL if none. */
 static const char *find_exe(const char *name, char *buf, size_t len)
 {
-    FILE *f = fopen(name, "rb");
-    if (f) {
-        fclose(f);
+    if (file_exists(name))
         return name;
+    const char *file = name;
+    for (const char *p = name; *p; p++)
+        if (*p == '/' || *p == '\\' || *p == ':')
+            file = p + 1;
+    const bool absolute = name[0] == '/' || name[0] == '\\' || strchr(name, ':');
+    char places[GAME_PLACES][1024], dir[1100];
+    const int n = absolute ? 1 : game_places(places);
+    for (int i = 0; i < n; i++) {
+        snprintf(dir, sizeof dir, "%.1023s%.*s", absolute ? "" : places[i], (int)(file - name), name);
+        file_path(buf, len, dir, file);
+        if (file_exists(buf))
+            return buf;
     }
-    if (name[0] == '/' || name[0] == '\\' || strchr(name, ':'))
-        return NULL;
-    char *base = SDL_GetBasePath();
-    if (!base)
-        return NULL;
-    snprintf(buf, len, "%s%s", base, name);
-    SDL_free(base);
-    if ((f = fopen(buf, "rb")) == NULL)
-        return NULL;
-    fclose(f);
-    return buf;
+    return NULL;
+}
+
+/* No volume anywhere: where they were looked for. */
+static void no_game(void)
+{
+    char places[GAME_PLACES][1024], text[4096];
+    const int n = game_places(places);
+    int len = snprintf(text, sizeof text,
+                       "Monuments of Mars needs the game's files: MARS1.EXE, MARS1.IGS, MARS1.CF1 "
+                       "and MARS1.CF2 (and the same for volumes 2 to 4), from marsfree.zip, in one "
+                       "of these folders:\n\n");
+    for (int i = 0; i < n && len < (int)sizeof text; i++)
+        len += snprintf(text + len, sizeof text - (size_t)len, "%s\n",
+                        places[i][0] ? places[i] : "the current folder");
+    if (len < (int)sizeof text)
+        snprintf(text + len, sizeof text - (size_t)len,
+                 "\nOr name one on the command line: mars path/to/MARS1.EXE");
+    fail(text);
 }
 
 /* One volume in the window: the title screen (or --level's game), then the menu loop until
@@ -284,8 +303,12 @@ static int choose_volumes(void)
         if (present[v] && n++ == 0)
             first = v;
     }
-    if (n <= 1) /* one volume, or none (MARS1.EXE's error) */
-        return play_volume(n ? exe[first] : "MARS1.EXE");
+    if (n == 0) {
+        no_game();
+        return 1;
+    }
+    if (n == 1)
+        return play_volume(exe[first]);
     static gamedata_t names; /* the volumes' names and the font, from the first one */
     char err[300];
     if (gamedata_load(&names, exe[first], err, sizeof err) != 0) {

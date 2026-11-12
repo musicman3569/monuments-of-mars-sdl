@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- The port's own icon (not the game's art): a pyramid on Mars under a ringed red planet,
+       in the CGA's palette 0 colours (green, red, brown). -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#07101e"/>
+      <stop offset="1" stop-color="#1c1430"/>
+    </linearGradient>
+    <radialGradient id="planet" cx="0.38" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#ff7a5c"/>
+      <stop offset="1" stop-color="#aa2a12"/>
+    </radialGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="40" fill="url(#sky)"/>
+  <circle cx="58" cy="52" r="2.5" fill="#ffffff"/>
+  <circle cx="212" cy="40" r="2" fill="#ffffff"/>
+  <circle cx="200" cy="118" r="2" fill="#ffffff"/>
+  <circle cx="34" cy="122" r="1.8" fill="#ffffff"/>
+  <g transform="rotate(-18 156 74)">
+    <path d="M98 74 A58 13 0 0 1 214 74" fill="none" stroke="#55ff55" stroke-width="5"/>
+    <circle cx="156" cy="74" r="38" fill="url(#planet)"/>
+    <path d="M98 74 A58 13 0 0 0 214 74" fill="none" stroke="#55ff55" stroke-width="5"/>
+  </g>
+  <path d="M8 196 L248 196 L248 208 C248 230 230 248 208 248 L48 248 C26 248 8 230 8 208 Z"
+        fill="#aa5500"/>
+  <path d="M40 196 L110 104 L180 196 Z" fill="#c86e1a" stroke="#2a1606" stroke-width="4"
+        stroke-linejoin="round"/>
+  <path d="M110 104 L180 196 L140 196 Z" fill="#7a3a08"/>
+  <path d="M60 170 L162 170 M76 148 L144 148 M92 126 L128 126" stroke="#2a1606" stroke-width="3"/>
+  <rect x="100" y="176" width="20" height="20" fill="#2a1606"/>
+  <rect x="104" y="180" width="12" height="16" fill="#55ff55"/>
+</svg>

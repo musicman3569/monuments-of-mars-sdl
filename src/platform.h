@@ -9,6 +9,16 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/* The build for the Miyoo Mini (Plus) under OnionUI (CMake's MARS_MIYOO; packaging/miyoo): the
+ * picture always fills the panel (doubled to 640 x 400, with black bars), there's no CRT
+ * filter (the CPU can't spare it) or full screen switch, the handheld's buttons stand where an
+ * Xbox pad's do in game (gamepad.h), and the high score name is entered with the d-pad. */
+#ifdef MARS_MIYOO
+enum { PLAT_HANDHELD = 1 };
+#else
+enum { PLAT_HANDHELD = 0 };
+#endif
+
 /* The game's keyboard ISR (1054:0499) state. scancode is [C8AA], the last make or break code
  * (PC/XT set 1) from port 60h. The held flags follow the configured keys and the arrows. */
 typedef struct {

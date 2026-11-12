@@ -41,6 +41,11 @@ static void save(const bool *changed, int n)
 int options_menu(menu_key_fn key, bool *physics_changed)
 {
     enum { PHYSICS, SMOOTH, CRT, FULLSCREEN, QUICK_TAPS, BACK, N };
+    /* the lines shown, by setting: the handheld has no CRT filter and is always full screen */
+    static const int all[N] = {PHYSICS, SMOOTH, CRT, FULLSCREEN, QUICK_TAPS, BACK};
+    static const int handheld[] = {PHYSICS, SMOOTH, QUICK_TAPS, BACK};
+    const int *const shown = PLAT_HANDHELD ? handheld : all;
+    const int n = PLAT_HANDHELD ? (int)(sizeof handheld / sizeof handheld[0]) : N;
     bool changed[BACK] = {false};
     int sel = 0;
     for (;;) {
@@ -51,24 +56,29 @@ int options_menu(menu_key_fn key, bool *physics_changed)
             {"CRT FILTER", settings.crt}, {"FULL SCREEN", settings.fullscreen},
             {"QUICK TAPS FIX", settings.quick_taps},
         };
-        for (int i = 0; i < BACK; i++) {
-            snprintf(text[i], sizeof text[i], "%-15s%8s", opt[i].name,
-                     i == PHYSICS ? (opt[i].on ? "MODERN" : "CLASSIC") : opt[i].on ? "ON" : "OFF");
+        for (int i = 0; i < n; i++) {
+            const int o = shown[i];
+            if (o == BACK) {
+                lines[i] = "BACK";
+                continue;
+            }
+            snprintf(text[i], sizeof text[i], "%-15s%8s", opt[o].name,
+                     o == PHYSICS ? (opt[o].on ? "MODERN" : "CLASSIC") : opt[o].on ? "ON" : "OFF");
             lines[i] = text[i];
         }
-        lines[BACK] = "BACK";
-        menu_box("OPTIONS", lines, N, sel, 29);
+        menu_box("OPTIONS", lines, n, sel, 29);
         const int k = key();
+        const int line = shown[sel];
         if (k == 0x48)
-            sel = (sel + N - 1) % N;
+            sel = (sel + n - 1) % n;
         else if (k == 0x50)
-            sel = (sel + 1) % N;
-        else if (k == SC_PAUSE_MENU || k == 0x01 || (k == 0x1C && sel == BACK)) {
+            sel = (sel + 1) % n;
+        else if (k == SC_PAUSE_MENU || k == 0x01 || (k == 0x1C && line == BACK)) {
             save(changed, BACK);
             return k == SC_PAUSE_MENU;
         } else if (k == 0x1C || k == 0x4B || k == 0x4D) {
-            changed[sel] = true;
-            switch (sel) {
+            changed[line] = true;
+            switch (line) {
             case PHYSICS:
                 settings.physics = settings.physics == PHYSICS_MODERN ? PHYSICS_CLASSIC : PHYSICS_MODERN;
                 *physics_changed = true;

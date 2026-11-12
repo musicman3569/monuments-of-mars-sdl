@@ -31,6 +31,7 @@ add_executable(mars
     src/smooth.c
     src/crt.c
     src/console.c
+    src/files.c
 )
 
 # Windows: a GUI program (no console window when double-clicked; see src/console.h), with
@@ -47,6 +48,15 @@ if(TARGET SDL2::SDL2main)
     target_link_libraries(mars PRIVATE SDL2::SDL2main)
 endif()
 target_link_libraries(mars PRIVATE SDL2::SDL2)
+if(NOT WIN32)
+    target_link_libraries(mars PRIVATE m)
+endif()
+
+# The build for the Miyoo Mini (Plus) under OnionUI (packaging/miyoo/build-onion-port.sh)
+option(MARS_MIYOO "Build for the Miyoo Mini (Plus) handheld" OFF)
+if(MARS_MIYOO)
+    target_compile_definitions(mars PRIVATE MARS_MIYOO)
+endif()
 
 if(MSVC)
     target_compile_options(mars PRIVATE /W4)
@@ -64,3 +74,7 @@ if(WIN32)
                 $<TARGET_RUNTIME_DLLS:mars> $<TARGET_FILE_DIR:mars>
         COMMAND_EXPAND_LISTS)
 endif()
+
+# `cmake --install` (the Linux AppImage's AppDir; packaging/linux/build-appimage.sh)
+include(GNUInstallDirs)
+install(TARGETS mars RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

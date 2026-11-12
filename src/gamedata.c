@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "files.h"
 #include "lzexe.h"
 
 static uint8_t *read_file(const char *path, size_t *len)
@@ -79,7 +80,9 @@ static void split_path(gamedata_t *g, const char *exe_path)
 
 void gamedata_path(const gamedata_t *g, const char *ext, char *out, size_t outlen)
 {
-    snprintf(out, outlen, "%s%s.%s", g->dir, g->base, ext);
+    char name[32];
+    snprintf(name, sizeof name, "%s.%s", g->base, ext);
+    file_path(out, outlen, g->dir, name);
 }
 
 int gamedata_load(gamedata_t *g, const char *exe_path, char *err, size_t errlen)

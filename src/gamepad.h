@@ -21,7 +21,13 @@
  *   menus and screens:  A or Start = Enter (play, go on)   B or Back = Esc
  *   the main menu:      up / down choose (and left / right in its Options), A or Start take
  *
- * The main menu's other choices, the high-score name and the cheats need the keyboard. */
+ * The main menu's other choices, the high-score name and the cheats need the keyboard.
+ *
+ * The Miyoo build (PLAT_HANDHELD): the handheld's SDL names its buttons by their labels, which
+ * stand the Nintendo way round, so in game the same places do the same as above: B jumps, Y
+ * fires, A or X uses; Select quits, L1 / R1 save / restore (bind.c). In the menus and
+ * questions its labels count, as on the Xbox pad: A is Enter and Y, B is Esc and N. The
+ * high-score name is picked with the d-pad (hiscore.c). */
 #ifndef MARS_GAMEPAD_H
 #define MARS_GAMEPAD_H
 

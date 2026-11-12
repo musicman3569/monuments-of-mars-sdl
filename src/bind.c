@@ -56,10 +56,16 @@ static const struct { SDL_Scancode sc; const char *name; } keys[] = {
     {SDL_SCANCODE_RCTRL, "RCTRL"}, {SDL_SCANCODE_RSHIFT, "RSHIFT"}, {SDL_SCANCODE_RALT, "RALT"},
 };
 
-/* The controller's buttons by PAD_ number (gamepad.h); the stick isn't bound. */
+/* The controller's buttons by PAD_ number (gamepad.h); the stick isn't bound. The handheld's
+ * own names for its shoulder buttons and Select. */
 static const char *const pad_names[PAD_BINDABLE] = {
+#ifdef MARS_MIYOO
+    "A", "B", "X", "Y", "START", "SELECT", "L1", "R1", "D-LEFT", "D-RIGHT", "D-UP", "D-DOWN",
+    "L2", "R2", "L3", "R3",
+#else
     "A", "B", "X", "Y", "START", "BACK", "LB", "RB", "D-LEFT", "D-RIGHT", "D-UP", "D-DOWN",
     "LT", "RT", "L3", "R3",
+#endif
 };
 
 const char *bind_action_name(int a)
@@ -100,8 +106,16 @@ void bind_defaults(void)
         {PAD_N_START, -1}, {PAD_N_LB, -1}, {PAD_N_RB, -1}, {PAD_N_BACK, -1}, {-1, -1}, {-1, -1},
         {-1, -1},
     };
+    /* The handheld's buttons are labelled the Nintendo way round (A right, B below, Y left, X
+     * above), and its SDL names them by label, so the same places do the same: B jumps, Y fires,
+     * A or X uses. */
+    static const int handheld[ACTIONS][BIND_SLOTS] = {
+        {PAD_N_LEFT, -1}, {PAD_N_RIGHT, -1}, {PAD_N_B, -1}, {PAD_N_Y, -1}, {PAD_N_A, PAD_N_X},
+        {PAD_N_START, -1}, {PAD_N_LB, -1}, {PAD_N_RB, -1}, {PAD_N_BACK, -1}, {-1, -1}, {-1, -1},
+        {-1, -1},
+    };
     memcpy(bindings.key, k, sizeof k);
-    memcpy(bindings.pad, p, sizeof p);
+    memcpy(bindings.pad, PLAT_HANDHELD ? handheld : p, sizeof p);
     memset(key_from_ini, 0, sizeof key_from_ini);
 }
 
@@ -277,10 +291,16 @@ void bind_write(FILE *f)
         bind_ini_value(key, value, sizeof value);
         fprintf(f, "%s = %s\n", actions[a].ini, value);
     }
-    fprintf(f, "\n[pad]\n"
-               "; the controller's two buttons for each action: A B X Y START BACK LB RB LT RT L3 R3\n"
-               "; D-LEFT D-RIGHT D-UP D-DOWN (Xbox names). The first of menu is always START, and\n"
-               "; the left stick always walks\n");
+    static const char pad_help[] =
+#ifdef MARS_MIYOO
+        "; the handheld's two buttons for each action: A B X Y START SELECT L1 R1 L2 R2\n"
+        "; D-LEFT D-RIGHT D-UP D-DOWN. The first of menu is always START\n";
+#else
+        "; the controller's two buttons for each action: A B X Y START BACK LB RB LT RT L3 R3\n"
+        "; D-LEFT D-RIGHT D-UP D-DOWN (Xbox names). The first of menu is always START, and\n"
+        "; the left stick always walks\n";
+#endif
+    fprintf(f, "\n[pad]\n%s", pad_help);
     for (int a = 0; a < ACTIONS; a++) {
         snprintf(key, sizeof key, "pad.%s", actions[a].ini);
         bind_ini_value(key, value, sizeof value);

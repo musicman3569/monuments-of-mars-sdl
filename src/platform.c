@@ -188,8 +188,8 @@ static void keyboard_isr(int code)
 
 void plat_set_fullscreen(bool on)
 {
-    settings.fullscreen = on;
-    if (!win)
+    settings.fullscreen = on && !PLAT_HANDHELD;
+    if (!win || PLAT_HANDHELD)
         return;
     SDL_SetWindowFullscreen(win, on ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
     SDL_ShowCursor(on ? SDL_DISABLE : SDL_ENABLE);
@@ -278,7 +278,7 @@ static void on_key(const SDL_KeyboardEvent *e)
     /* Alt+C: the CRT look on / off; the game doesn't see that C */
     if (e->type == SDL_KEYDOWN && e->keysym.scancode == SDL_SCANCODE_C && (e->keysym.mod & KMOD_ALT)) {
         if (!e->repeat) {
-            settings.crt = !settings.crt;
+            settings.crt = !settings.crt && !PLAT_HANDHELD;
             printf("CRT look %s\n", settings.crt ? "on" : "off");
             dirty = true;
         }
@@ -402,8 +402,14 @@ int plat_init(const char *title, char *err, size_t errlen)
     }
     pad_init();
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
-    win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 600,
-                           SDL_WINDOW_RESIZABLE | (settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
+    if (PLAT_HANDHELD) /* whatever mars.ini says (copied from a PC, say) */
+        settings.crt = settings.fullscreen = false;
+    /* the handheld's SDL scales the window to its 640 x 480 panel keeping its shape, so 640 x 400
+     * is the picture doubled with black bars above and below it */
+    win = PLAT_HANDHELD ? SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 400, 0)
+                        : SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 600,
+                                           SDL_WINDOW_RESIZABLE |
+                                               (settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
     /* No vsync: waiting for it inside the game's own delay() calls (its sound effects) would
      * stretch them. plat_poll paces the redraws instead; on Windows the compositor keeps a
      * window tear-free. */

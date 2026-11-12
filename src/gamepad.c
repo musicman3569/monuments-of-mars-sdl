@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "bind.h"
+#include "files.h"
 #include "platform.h"
 
 #define MAX_PADS 8
@@ -74,19 +75,19 @@ void pad_init(void)
         fprintf(stderr, "mars: no controller support: %s\n", SDL_GetError());
         return;
     }
-    char *base = SDL_GetBasePath();
-    if (base) {
-        char path[1024];
-        snprintf(path, sizeof path, "%sgamecontrollerdb.txt", base);
-        SDL_free(base);
-        SDL_RWops *rw = SDL_RWFromFile(path, "rb");
-        if (rw) {
-            const int n = SDL_GameControllerAddMappingsFromRW(rw, 1);
-            if (n > 0)
-                printf("controller mappings: %d from %s\n", n, path);
-        }
+    char dir[1000], path[1100];
+    port_dir(dir, sizeof dir); /* beside mars.exe, or the AppImage */
+    snprintf(path, sizeof path, "%sgamecontrollerdb.txt", dir);
+    SDL_RWops *rw = SDL_RWFromFile(path, "rb");
+    if (rw) {
+        const int n = SDL_GameControllerAddMappingsFromRW(rw, 1);
+        if (n > 0)
+            printf("controller mappings: %d from %s\n", n, path);
     }
-    /* Controllers already plugged in arrive as device-added events too. */
+    /* Controllers already plugged in arrive as device-added events too, but not on every
+     * system (the Miyoo's SDL), so they're opened now as well; open_pad skips one opened twice. */
+    for (int i = 0; i < SDL_NumJoysticks(); i++)
+        open_pad(i);
 }
 
 void pad_event(const SDL_Event *ev)

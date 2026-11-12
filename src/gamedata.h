@@ -58,7 +58,7 @@ const char *gamedata_find_exact(const gamedata_t *g, const char *s);
  * other), or NULL. */
 const char *gamedata_next_string(const gamedata_t *g, const char *s);
 
-/* "MARS1.CF1" etc.: the path of a file next to the EXE. */
+/* "MARS1.CF1" etc.: the path of a file next to the EXE, in whatever case it has there (files.h). */
 void gamedata_path(const gamedata_t *g, const char *ext, char *out, size_t outlen);
 
 static inline const uint8_t *tile_ptr(const gamedata_t *g, int tile)

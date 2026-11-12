@@ -24,6 +24,7 @@ build/
 *.png
 !docs/*.png
 !docs/screenshots/*.png
+!packaging/linux/*.png
 
 # Release packages
 dist/

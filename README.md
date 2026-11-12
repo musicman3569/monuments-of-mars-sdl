@@ -24,6 +24,7 @@ run natively on modern systems in C11 and SDL2.
 | `tools/`    | Python helpers: unpacker, Ghidra dump/rename/annotate, graphics extractor |
 | `analysis/` | Ghidra function names (`MARS1.names.txt`)                       |
 | `docs/`     | Reverse engineering notes (`notes.md`) and the port's progress (`implementation-progress.md`) |
+| `packaging/` | The Linux AppImage's build and the Miyoo Mini's OnionUI port (both in Docker) |
 
 ## The port
 
@@ -90,8 +91,68 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-That produces `build/mars.exe` with `SDL2.dll` copied next to it. On Linux/macOS the same
-commands should work with SDL2 installed through your package manager (not tried yet).
+That produces `build/mars.exe` with `SDL2.dll` copied next to it.
+
+### Build (Linux)
+
+The same commands, with GCC or Clang, CMake, Ninja and SDL2 from the package manager (on Arch:
+`pacman -S --needed base-devel cmake ninja sdl2-compat`). That produces `build/mars`. The game's
+file names can be in any case (`MARS1.EXE` or `mars1.exe`).
+
+### The Linux AppImage (Steam Deck, Bazzite and other distributions)
+
+```
+packaging/linux/build-appimage.sh
+```
+
+builds `dist/MonumentsOfMars-x86_64.AppImage` in a Docker container (Ubuntu 22.04, with SDL2
+2.32 built from source and bundled), so it runs on any x86-64 Linux with glibc 2.34 or later:
+SteamOS 3, Bazzite, Fedora, Ubuntu 22.04 and later, Arch. Only Docker is needed on the build
+machine. The AppImage holds the port and SDL2 only; the game's files stay outside it.
+
+To play, put the AppImage in a folder with the files from `marsfree.zip` (or with a `game`
+folder holding them), make it executable (`chmod +x`, or Properties > Permissions in a file
+manager) and run it. On a Steam Deck or Bazzite, add it to Steam in Desktop Mode (Steam > Games
+> Add a Non-Steam Game to My Library > Browse) to play it in Gaming Mode; the Deck's controls
+are a game controller. `mars.ini` is kept beside the AppImage, and the scores and saves beside
+the game's files, so both folders must be writable.
+
+### The Miyoo Mini (Plus) under OnionUI
+
+```
+packaging/miyoo/build-onion-port.sh
+```
+
+cross-compiles the port in a Docker container and builds `dist/MonumentsOfMars-OnionUI.zip`,
+laid out as OnionUI's [Ports Collection](https://github.com/OnionUI/Ports-Collection) lays out
+its engine ports. The container has the Miyoo Mini toolchain from shauninman's
+[union-miyoomini-toolchain](https://github.com/shauninman/union-miyoomini-toolchain) (GCC 8.3,
+glibc 2.28) and XK9274's sdl2_miyoo, an SDL 2.0.20 with drivers for the handheld's display,
+sound and buttons, which goes into the zip; its upstream is gone, so its prebuilt library and
+headers are kept in [`packaging/miyoo/sdl2-miyoo/`](packaging/miyoo/sdl2-miyoo/README.md) (the
+same copy as Realms of Chaos's). Only Docker is needed on the build machine.
+
+To install it, extract the zip to the root of the SD card, copy the files from `marsfree.zip`
+into `Roms/PORTS/Games/Monuments of Mars/`, then in Ports run "~Import ports": Monuments of Mars
+appears under Platform. The volume selector comes first; the scores, saves and `mars.ini` are
+kept in that folder too.
+
+The build for the handheld (CMake's `MARS_MIYOO`) shows the picture doubled to 640 x 400 with
+black bars, has no CRT filter or full screen switch (Options leaves them out), and takes the
+high score name from the d-pad: up and down pick the letter under the cursor, right moves on,
+left or B goes back, A or Start ends. The buttons keep the places of an Xbox pad's in a game,
+and the handheld's own labels in the menus and questions; the Controls screen calls them by
+the handheld's names (L1, R2, SELECT):
+
+| Button | In a game | Menus and questions |
+|--------|-----------|---------------------|
+| D-pad | walk | move |
+| B | jump | Esc (back), N |
+| Y | fire | |
+| A or X | use (Enter) | A: Enter, Y |
+| Start | the pause menu | Enter, Y |
+| Select | quit (Q) | Esc, N |
+| L1 / R1 | save / restore | |
 
 ### Run
 
@@ -101,9 +162,9 @@ build/mars.exe game/MARS1.EXE
 
 Run `mars.exe game/MARS2.EXE` (and so on) for the other volumes. Without an EXE on the command
 line, the port opens a volume selector listing the `MARSn.EXE` files it finds in the current
-folder or next to `mars.exe` (1 First Contact, 2 The Pyramid, 3 The Fortress, 4 The Face):
+folder, next to `mars.exe` (or the AppImage) or in a `game` folder there (1 First Contact, 2 The Pyramid, 3 The Fortress, 4 The Face):
 choose one with the arrows, the d-pad or a digit and Enter or A. Quitting a volume from its main
-menu comes back to the selector; Esc there leaves. With only one volume, it starts straight away.
+menu comes back to the selector; Esc there leaves. With only one volume, it starts straight away; with none, a message lists the folders it looked in.
 
 With a release download, put the game files next to `mars.exe` and double-click it. The game starts full screen; F11 or
 Alt+Enter switches to a window, and `--window` starts in one.
@@ -293,6 +354,9 @@ The port's source code and tools are released under the MIT License (see `LICENS
 by guest(r), and `dotmask.slang` by cgwg, Timothy Lottes and torridgristle) and is under the GNU
 General Public License, version 2 or later (see `LICENSE-GPL-2.0.txt`). A build of the port
 includes it, so the program as a whole is distributed under the GPL.
+
+The Miyoo Mini build also holds sdl2_miyoo, under the GNU GPL version 3 (its license goes into
+the zip), so that build as a whole is under GPL-3.0.
 
 That covers this repository only: Monuments of Mars itself is (c) 1990-91 Scenerio Software
 and Apogee Software, distributed as freeware, and none of its files are included here.
