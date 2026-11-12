@@ -44,8 +44,9 @@ high scores, saved games, the ending and the cheats, compatible with the origina
 - **Quitting** shows the ordering info as the original does, but not its final text-mode
   shareware notice; the window just closes. A missing `.CF1` / `.CF2` gives an error box rather
   than the text-mode order form.
-- **After level 20** the game ends straight away. The original first draws "LEVEL 21" over a
-  level built from whatever bytes follow the level table.
+- **After the ending screen** the port goes straight to the high scores. The original, through
+  a glitch, first flashes a junk "LEVEL 21" screen built from leftover data for a moment; there
+  is no real level 21, and nothing of the ending is left out.
 - **Message screens** (the rescue message, the stone face, the ending) wait for a key to be
   pressed. The original's also ended on a key let go, so a key held as one came up closed it.
 - **Esc** in a game opens the port's pause menu instead of asking QUIT (Y/N); Q still asks.
