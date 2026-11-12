@@ -75,8 +75,9 @@ as `marsfree.zip` (201 KB, all four volumes) from either of these:
 - [Dukeworld: Apogee freeware archive](https://dukeworld.com/2001-current/apogee%20freeware/)
   (a folder of Apogee's freeware releases; pick `marsfree.zip`)
 
-Unzip it into `game/` (or next to `mars.exe`). The port needs `MARSn.EXE`, `MARSn.IGS`,
-`MARSn.CF1` and `MARSn.CF2` for each volume you play; the other files are created as you play.
+Unzip it next to `mars.exe` (for a release download) or into `game/` (when building from
+source). The port needs `MARSn.EXE`, `MARSn.IGS`, `MARSn.CF1` and `MARSn.CF2` for each volume
+you play; the other files are created as you play.
 
 ### Build (Windows, MSYS2 mingw64)
 
@@ -98,7 +99,11 @@ build/mars.exe game/MARS1.EXE
 ```
 
 Run `mars.exe game/MARS2.EXE` (and so on) for the other volumes. Without an EXE on the command
-line, the port looks for `MARS1.EXE` in the current folder. The game starts full screen; F11 or
+line, the port looks for `MARS1.EXE` in the current folder, then next to `mars.exe`.
+
+With a release download, double-click `mars.exe` in the folder with the game files to play
+volume 1, or run `mars.exe MARS2.EXE` (and so on) for the others. Dropping a `MARSn.EXE` onto
+`mars.exe` works too. The game starts full screen; F11 or
 Alt+Enter switches to a window, and `--window` starts in one.
 
 Menu keys as in the original: J (or Enter) to journey onward, I instructions, S story so far,
@@ -284,8 +289,8 @@ routine and table, and the GhidraMCP quirks to watch for.
 The port's source code and tools are released under the MIT License (see `LICENSE`), except
 `src/crt.c`, which translates two GPL shaders from RetroArch's collection (`2xsal-level2.slang`
 by guest(r), and `dotmask.slang` by cgwg, Timothy Lottes and torridgristle) and is under the GNU
-General Public License, version 2 or later. A build of the port includes it, so the program as a
-whole is distributed under the GPL.
+General Public License, version 2 or later (see `LICENSE-GPL-2.0.txt`). A build of the port
+includes it, so the program as a whole is distributed under the GPL.
 
 That covers this repository only: Monuments of Mars itself is (c) 1990-91 Scenerio Software
 and Apogee Software, distributed as freeware, and none of its files are included here.

@@ -1,0 +1,29 @@
+/* Windows: the version information Explorer shows in mars.exe's properties. */
+#include <winver.h>
+#include "version.h"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION MARS_VERSION_MAJOR, MARS_VERSION_MINOR, MARS_VERSION_PATCH, 0
+PRODUCTVERSION MARS_VERSION_MAJOR, MARS_VERSION_MINOR, MARS_VERSION_PATCH, 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "musicman3569"
+            VALUE "FileDescription", "Monuments of Mars (port)"
+            VALUE "FileVersion", MARS_VERSION_STRING
+            VALUE "InternalName", "mars"
+            VALUE "LegalCopyright", "Port: MIT / GPL v2+. Monuments of Mars (c) 1990-91 Scenerio Software and Apogee Software"
+            VALUE "OriginalFilename", "mars.exe"
+            VALUE "ProductName", "Monuments of Mars"
+            VALUE "ProductVersion", MARS_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

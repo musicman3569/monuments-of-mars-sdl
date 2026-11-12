@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(mars C)
+project(mars VERSION 1.0.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -30,7 +30,18 @@ add_executable(mars
     src/settings.c
     src/smooth.c
     src/crt.c
+    src/console.c
 )
+
+# Windows: a GUI program (no console window when double-clicked; see src/console.h), with
+# version information in its properties.
+if(WIN32)
+    enable_language(RC)
+    set_target_properties(mars PROPERTIES WIN32_EXECUTABLE TRUE)
+    configure_file(src/version.h.in version.h @ONLY)
+    target_sources(mars PRIVATE src/mars.rc)
+    target_include_directories(mars PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif()
 
 if(TARGET SDL2::SDL2main)
     target_link_libraries(mars PRIVATE SDL2::SDL2main)

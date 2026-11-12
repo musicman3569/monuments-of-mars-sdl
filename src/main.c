@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "cga.h"
+#include "console.h"
 #include "gamedata.h"
 #include "game.h"
 #include "hiscore.h"
@@ -202,6 +203,7 @@ static int show(gamedata_t *g, const char *name, char *err, size_t errlen)
 
 int main(int argc, char **argv)
 {
+    console_attach();
     if (parse_args(argc, argv, &opt) != 0 || load_settings(&opt) != 0)
         return 2;
     if (opt.print_settings) {
@@ -212,6 +214,23 @@ int main(int argc, char **argv)
     cga_bright_override = opt.bright;
     static gamedata_t data;
     char err[300];
+    /* A relative MARSn.EXE that isn't in the current folder: the one beside mars.exe (started
+     * from a shortcut or another folder, the game files are where the port is). */
+    static char beside[1100];
+    FILE *probe = fopen(opt.exe_path, "rb");
+    if (probe) {
+        fclose(probe);
+    } else if (opt.exe_path[0] != '/' && opt.exe_path[0] != '\\' && !strchr(opt.exe_path, ':')) {
+        char *base = SDL_GetBasePath();
+        if (base) {
+            snprintf(beside, sizeof beside, "%s%s", base, opt.exe_path);
+            SDL_free(base);
+            if ((probe = fopen(beside, "rb")) != NULL) {
+                fclose(probe);
+                opt.exe_path = beside;
+            }
+        }
+    }
     if (gamedata_load(&data, opt.exe_path, err, sizeof err) != 0) {
         fail(err);
         return 1;
