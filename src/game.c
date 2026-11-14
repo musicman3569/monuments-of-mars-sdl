@@ -1820,12 +1820,38 @@ static mpos_t *m_pushable(int dir)
     return blocked ? NULL : p;
 }
 
+/* How far to slide the player, from column x with the sprite's top at r, for the head to clear
+ * a ceiling it is catching only the edge of: up to 3 px either way (the nearest first, the way
+ * they face first), through nothing above the knees. 0 if no slide clears it. The original's
+ * player stands on whole bytes, so it is always right under a gap a byte wide or more, as the
+ * gaps are laid out; a pixel at a time, a jump up MARS1 level 15's 8 px shafts needed the
+ * player right on the pixel. */
+static int m_ceiling_slide(int x, int r)
+{
+    const int first = facing_left ? -1 : 1;
+    for (int d = 1; d <= 3; d++)
+        for (int k = 0; k < 2; k++) {
+            const int s = k ? -first : first, to = x + s * d;
+            if (to < 0 || to > M_MAX_X || m_head(to, r))
+                continue;
+            int clear = 1;
+            for (int i = 1; i <= d && clear; i++) {
+                const int col = s > 0 ? x + i + 11 : x - i + 4;
+                clear = !m_box(col, r, col, r + 10, W_BODY);
+            }
+            if (clear)
+                return s * d;
+        }
+    return 0;
+}
+
 /* Move the player down (d > 0) or up, a scanline at a time: down stops on the ground, up at
- * the ceiling, which ends the jump. */
+ * the ceiling, which ends the jump, unless a slide of a pixel or three clears it. */
 static void m_move_player_y(float d)
 {
     const float to = m_pl.y + d;
-    const int x = (int)floorf(m_pl.x), end = (int)floorf(to);
+    int x = (int)floorf(m_pl.x);
+    const int end = (int)floorf(to);
     for (int r = (int)floorf(m_pl.y); r < end; r++)
         if (m_ground(x, r)) {
             m_pl.y = (float)r;
@@ -1833,6 +1859,12 @@ static void m_move_player_y(float d)
         }
     for (int r = (int)floorf(m_pl.y); r > end; r--)
         if (m_head(x, r)) {
+            const int slide = m_ceiling_slide(x, r);
+            if (slide) {
+                m_pl.x += (float)slide;
+                x += slide;
+                continue;
+            }
             m_pl.y = (float)r;
             jump_over = 1;
             return;
@@ -1954,6 +1986,13 @@ static void m_update_player(void)
     bool pushing = false; /* the jump's push, which falls off as it goes */
     if (!can_jump && !on_ground) {
         frame = facing_left ? 0x25 : 0x1F;
+        if (m_ceiling && !jump_over) { /* the head on a ceiling's edge: slide clear of it */
+            const int slide = m_ceiling_slide((int)floorf(m_pl.x), (int)floorf(m_pl.y));
+            if (slide) {
+                m_pl.x += (float)slide;
+                m_ceiling = 0;
+            }
+        }
         m_sync_player();
         const int c = find_special_at((uint8_t)py, (uint8_t)px);
         touch_tile(c);

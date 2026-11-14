@@ -581,7 +581,12 @@ column 3 px in from either side of the sprite (where its outer bytes end), over 
 jump's top are climbed); the ceiling the scanline above the head. A pixel that isn't black is
 solid, plus the platforms' and boulders' own pixels. Falls and rises move a scanline at a time
 and stop at the ground or the ceiling, so landings are exact (the original sinks up to 3 rows
-into the floor, then climbs out a row a frame). Walking down a slope or a small step keeps
+into the floor, then climbs out a row a frame). A rise whose head catches only the edge of a
+ceiling slides the player up to 3 px clear of it (`m_ceiling_slide`), the way they face
+first, if nothing above their knees is in the way: the original's player stands on whole
+bytes, which puts it right under the byte-wide gaps the levels have (MARS1 level 15's 8 px
+shafts by the boulder), where a pixel at a time it had to be on the one pixel that fits.
+Walking down a slope or a small step keeps
 to it rather than falling. The lowest the player goes is row 58h, not the original's clamp of
 54h: the original clamps before its gravity, which carries it up to 4 rows further, and exits
 at the bottom of an open shaft (level 4) sit in the map's last row, reached only at 58h.
