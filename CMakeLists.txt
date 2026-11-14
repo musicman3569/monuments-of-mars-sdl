@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(mars VERSION 1.0.0 LANGUAGES C)
+project(mars VERSION 1.0.1 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -45,7 +45,7 @@ if(WIN32)
     # the icon's path in mars.rc is from the repository's root
     set_property(SOURCE src/mars.rc APPEND PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR})
     set_property(SOURCE src/mars.rc APPEND PROPERTY OBJECT_DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/monuments-of-mars.ico)
+        ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/monuments-of-mars.ico ${CMAKE_CURRENT_BINARY_DIR}/version.h)
 endif()
 
 if(TARGET SDL2::SDL2main)
