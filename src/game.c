@@ -1846,8 +1846,30 @@ static int m_ceiling_slide(int x, int r)
     return 0;
 }
 
-/* Move the player down (d > 0) or up, a scanline at a time: down stops on the ground, up at
- * the ceiling, which ends the jump, unless a slide of a pixel or three clears it. */
+/* The same for the feet on a hole's lip, with the sprite's top at r: the slide (up to 2 px)
+ * to the byte column the player rounds to (to_col, the original's), if the feet are over
+ * nothing there and the hole has ground on both sides (one the feet fill, not a ledge's
+ * edge). 0 if not. The original's player stops on whole bytes, so stopped over a byte-wide
+ * hole it falls in; a pixel at a time, MARS1 level 15's 8 px holes needed the player on the
+ * one pixel that fits. Sliding further than the rounding, the player fell into holes the
+ * original stands beside (the deadly shaft at the level's bottom left). */
+static int m_hole_slide(int x, int r)
+{
+    const int to = to_col((float)x) * 4, s = to > x ? 1 : -1;
+    if (to == x || to < 0 || to > M_MAX_X || m_ground(to, r) || !m_box(to, r + 16, to + 3, r + 16, W_BODY) ||
+        !m_box(to + 12, r + 16, to + 15, r + 16, W_BODY))
+        return 0;
+    for (int i = 1; i <= abs(to - x); i++) {
+        const int col = s > 0 ? x + i + 11 : x - i + 4;
+        if (m_box(col, r, col, r + 15, W_BODY))
+            return 0;
+    }
+    return to - x;
+}
+
+/* Move the player down (d > 0) or up, a scanline at a time: down stops on the ground, unless
+ * a slide of a pixel or three drops the feet into a hole they are on the lip of, up at the
+ * ceiling, which ends the jump, unless a slide of a pixel or three clears it. */
 static void m_move_player_y(float d)
 {
     const float to = m_pl.y + d;
@@ -1855,6 +1877,12 @@ static void m_move_player_y(float d)
     const int end = (int)floorf(to);
     for (int r = (int)floorf(m_pl.y); r < end; r++)
         if (m_ground(x, r)) {
+            const int slide = m_hole_slide(x, r);
+            if (slide) {
+                m_pl.x += (float)slide;
+                x += slide;
+                continue;
+            }
             m_pl.y = (float)r;
             return;
         }
@@ -2052,6 +2080,15 @@ static void m_update_player(void)
     }
 
     int ground = m_ground(x, y);
+    if (ground && on_ground && can_jump && !dir && m_jump_press <= 0) { /* stopped on a hole's lip */
+        const int slide = m_hole_slide(x, y);
+        if (slide) {
+            m_pl.x += (float)slide;
+            x += slide;
+            ground = 0;
+            m_sync_player();
+        }
+    }
     if (!ground && on_ground && can_jump) /* walking down a slope or a step: keep to it */
         for (int k = 1; k <= M_STEP_UP && !ground; k++)
             if ((ground = m_ground(x, y + k)) != 0) {

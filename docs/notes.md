@@ -586,6 +586,12 @@ ceiling slides the player up to 3 px clear of it (`m_ceiling_slide`), the way th
 first, if nothing above their knees is in the way: the original's player stands on whole
 bytes, which puts it right under the byte-wide gaps the levels have (MARS1 level 15's 8 px
 shafts by the boulder), where a pixel at a time it had to be on the one pixel that fits.
+Going down, the same: stopped (no direction, no jump) or landing with the feet on the lip of
+a hole that has ground on both sides, the player slides to the byte column it rounds to
+(`to_col`, up to 2 px; `m_hole_slide`) if the feet are over nothing there, so it falls in
+where the original's player, standing on that byte, would. Walking over a hole still carries
+on across it, as the original's does. (Sliding 3 px, like the jump, it fell into holes the
+original stands beside: the deadly shaft at the bottom left of level 15.)
 Walking down a slope or a small step keeps
 to it rather than falling. The lowest the player goes is row 58h, not the original's clamp of
 54h: the original clamps before its gravity, which carries it up to 4 rows further, and exits
