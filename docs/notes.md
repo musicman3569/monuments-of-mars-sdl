@@ -669,7 +669,13 @@ rows below the top, which ended the jump there: jumping right from the last step
 12's stair by the terminal, up past the end of the girder above it, the original rises over
 the girder and comes down onto it, and modern stopped dead on its top. (Stepped up out of the
 corner instead of passing it, the jump rose 5 px higher than the original's.) The walls and the
-ceiling still stop the body as before.
+ceiling still stop the body as before. Near the jump's top (rising less than 2.5 rows a
+frame, `M_STICK_RISE`) the feet do step up onto a ledge and the jump ends there, as the
+original's do: its one feet scanline, tested once a frame, is carried past a corner by the
+6-8 px a frame early in a jump, but near the top it catches the ledge the player has just
+moved over. Climbing left or right out of MARS1 level 15's shaft above the switch, the
+original stands on the ledge at once; carried on up, modern's head met the round enemy on the
+top row. (The level 12 girder's corner is reached at 3.1 rows a frame, this ledge at 2.3.)
 The touching rules (FindSpecialTileAt, TouchTile), scores, the turret, the shot's map-cell
 rules (`shot_hit`) and the level exits are the original's code, fed with positions rounded
 to its byte columns and rows. So is the pose: the jump picture (1F / 25) is set every step in

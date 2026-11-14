@@ -1410,6 +1410,7 @@ static void cheat_level_skip(void)
  * map's last row, reached at 58h. */
 #define M_MAX_Y (0x58 * 2)
 #define M_STEP_UP 5        /* the most the feet climb in a step (the original: a row a frame) */
+#define M_STICK_RISE 2.5f  /* rising slower than this (rows a frame), feet in a ledge stand on it */
 
 typedef struct {
     float x, y;   /* px; y in scanlines of the back buffers */
@@ -2064,7 +2065,8 @@ static void m_update_player(void)
      * end of the MARS1 level 12 girder by the terminal, it rises over the girder's top and
      * comes down onto it. Modern slides on as the wall clears, and its feet caught the corner
      * 2 rows below the top, which ended the jump there. (Stepped up out of it instead, the jump
-     * went 5 px higher than the original's.) The walls still stop the body. */
+     * went 5 px higher than the original's.) The walls still stop the body. Near the jump's top
+     * the original's feet do catch a ledge, a frame's rise being small then: see the step-up. */
     if (!ground || rising) { /* falling, or rising */
         on_ground = 0;
         m_air += M_TICK;
@@ -2080,7 +2082,13 @@ static void m_update_player(void)
         m_jump = 0;
         m_support = ground;
     }
-    if (!rising && m_box(x + 4, y + 11, x + 11, y + 15, W_BODY | W_CONTROLS_OPEN)) { /* feet in the floor: step up */
+    /* Feet in the floor: step up. Rising, only near the jump's top (M_STICK_RISE), as the
+     * original's: its feet are tested once a frame, on one scanline, so early in a jump a frame's
+     * rise of 6-8 px takes them past a corner (the level 12 girder above), but near the top it
+     * catches the ledge they move over and the jump ends standing on it. Climbing out of MARS1
+     * level 15's shaft after the switch to the left, it stands on the ledge; carried on up,
+     * modern's head met the round enemy on the top row. */
+    if ((!rising || v > -M_STICK_RISE) && m_box(x + 4, y + 11, x + 11, y + 15, W_BODY | W_CONTROLS_OPEN)) {
         const int c = find_special_at((uint8_t)py, (uint8_t)px);
         touch_tile(c);
         if (!m_ceiling) {
